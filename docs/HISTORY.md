@@ -19,6 +19,12 @@ Statistik-Popup (Volumen) → Plateau-Warnung → zwei Prozentwerte (gesamt/Vorw
 Chin-ups an Ringen → neutral, Ziel 3×8–12 (Absprung, später Band) · Hammer-Curls 3 Sätze · Liegestütze mit 3 s runter/1–2 s halten, kein Rucksack · Rückenstabilität verteilt (Suitcase Carry Mo, Pallof Mi statt Bird-Dog, Seitstütz Sa) · Military Press (Langhantel stehend) → einarmiges KH-Drücken halbknien (Start 16 kg) wegen Rückenrisiko · Ab-Wheel → Knee to Elbow.
 Gespräch zu Equipment/Erholung: Deload-Woche alle ~6 Wochen, Mini-Scheiben und Bänder sinnvoll, Ring-Dips vorerst nicht (Schulter/Sehne), Squat-Rack/Bank wegen Platz nicht.
 
+## Code-Review und Update (13.11.2026, Claude Code)
+Behoben: (1) Alte Einheiten mit entfernten Übungen (`militarypress`, `abwheel`) galten immer als „ungespeichert“, und erneutes Speichern hätte diese Einträge gelöscht → Fremd-Einträge bleiben erhalten und zählen nicht als Abweichung. (2) Klimmzüge mit Band/Absprung bekamen „+2,5 kg“ statt „Hilfe abbauen“; Pallof „stärkeres Band“. (3) Neuer Tag mit offenem Entwurf aktualisierte „heute“ nicht. (4) Nach DB-Abbruch lief die App still im Browser-Speicher weiter → Modus „offline“ mit Vormerk-Warteschlange und Neuverbindung; Speichern vor dem Verbinden landet ebenfalls in der Warteschlange. (5) Doppeltipp auf Speichern → Sperre. (6) `limit(400)` → 1000. (7) `t` bei Tempo-Übungen immer gespeichert. Kleinkram: Heute-Punkt am Sonntag, Kommentar `dateForDay`, Guard im Haken-Handler, Escaping von DB-Werten im Verlauf, Zeitübungen „Ziel 40 s“ statt „40 Wdh.“.
+Vereinfacht: totes `statChart` + CSS entfernt, Datums-Helfer (`addDays`, `weekStart`), `fmt(n, digits)`, eine Lastfunktion `setLoad` für Volumen und Kraft, Mini-Kurven aus `statSeries`, Dark-Mode per `light-dark()`, Tab-Handler zusammengefasst, Blätter (Statistik/Einstellungen) gemeinsam.
+Neu: Einstellungen (Körpergewicht, Band-kg, Band-Faktor + Messen, Ton, Bildschirm an), Export/Import JSON, Deload-Hinweis, Wochenübersicht, Bestwerte, Notiz pro Einheit, Zeit unter Spannung, Supersatz-Ablauf, Teil-Updates statt Neuaufbau.
+Zahlen der Statistik mit den Exportdaten alt/neu verglichen: identisch, außer Suitcase Carry (Hauptwert jetzt 80 s statt 1.280 kg·s, kg·s als Zusatzzeile) und den neuen Progressionstexten. Nutzerdaten nicht verändert.
+
 ## Manuelle Datenkorrekturen in der DB (auf Aussage des Nutzers)
 - 2026-10-21_mi: Klimmzüge als `j:true` (mit Absprung) markiert.
 - 2026-10-23_fr und 2026-10-30_fr: Liegestütze als `t:true` (Haltezeit) markiert (23.10. wurde einmal durch erneutes Speichern wieder überschrieben und neu gesetzt).
@@ -27,4 +33,4 @@ Gespräch zu Equipment/Erholung: Deload-Woche alle ~6 Wochen, Mini-Scheiben und 
 - Früher: Einträge, die versehentlich falsch datiert waren (z. B. Power Cleans doppelt am 12./13.10.), sind laut Stand noch vorhanden (`2026-10-13_mo` ist die doppelte Einheit).
 
 ## Export-Stand
-- Paket aktualisiert am 13.11.2026: 26 Einheiten (letzte: `2026-11-13_fr`), Statistik-Snapshot in `docs/STATS-SNAPSHOT.md`. Seit dem ersten Export keine Code-Änderungen, die App-Datei entspricht dem veröffentlichten Stand.
+- Paket aktualisiert am 13.11.2026: 26 Einheiten (letzte: `2026-11-13_fr`), Statistik-Snapshot in `docs/STATS-SNAPSHOT.md`. Die App-Datei enthält seit dem Code-Review (siehe oben) Änderungen, die noch veröffentlicht werden müssen.
