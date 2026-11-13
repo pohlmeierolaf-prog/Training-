@@ -2,7 +2,7 @@
 
 Trainings-Tracker (Einzeldatei, Vanilla-JS, iOS-ähnliche Oberfläche, Deutsch) für einen 6-Tage-Plan.
 Läuft produktiv als **Artifact auf claude.ai** mit den Capabilities `db`, `user` und `downloads` (`downloads` nur für den Export als Datei; ohne sie bleibt „Kopieren“); Link:
-https://claude.ai/artifact/BU6mAtmeecxdMvYYcqz2ZT (privat, nur für Olaf).
+https://claude.ai/artifact/5PuWzbmHKTxpJM9W6xPr12 (privat, nur für Olaf; seit 13.11.2026, die alte App BU6mAtmeecxdMvYYcqz2ZT lag in einem anderen Konto).
 
 ## Inhalt
 | Pfad | Zweck |
@@ -28,7 +28,7 @@ python3 dev/build_dev.py && python3 -m http.server 8000
 ## Deployment (wichtig)
 Claude Code kann **keine** Artifacts veröffentlichen. Ablauf nach Änderungen:
 1. `src/kraftplan.html` ändern, `node test/smoke.js` ausführen.
-2. Datei in einen claude.ai-Chat hochladen und schreiben: *„Veröffentliche diese Datei unverändert als neue Version von https://claude.ai/artifact/BU6mAtmeecxdMvYYcqz2ZT mit den Capabilities db, user und downloads.“* (Update desselben Artifacts, die Daten bleiben erhalten.)
+2. Datei in einen claude.ai-Chat hochladen und schreiben: *„Veröffentliche diese Datei unverändert als neue Version von https://claude.ai/artifact/5PuWzbmHKTxpJM9W6xPr12 mit den Capabilities db, user und downloads.“* (Update desselben Artifacts, die Daten bleiben erhalten.)
 3. Nutzer lädt die Seite neu und testet auf dem Handy.
 
 Einschränkungen veröffentlichter Seiten: selbstenthalten (nur `cdnjs.cloudflare.com`, `cdn.jsdelivr.net/npm/`, `cdn.tailwindcss.com`, `code.jquery.com` als Script-Hosts; sonst keine Netzwerkzugriffe), < 16 MB, Datei muss mit `<!DOCTYPE html>` beginnen, `window.storage` und die Anthropic-API gibt es dort nicht. `localStorage` ist pro Betrachter vorhanden (immer in try/catch).

@@ -34,3 +34,6 @@ Zahlen der Statistik mit den Exportdaten alt/neu verglichen: identisch, außer S
 
 ## Export-Stand
 - Paket aktualisiert am 13.11.2026: 26 Einheiten (letzte: `2026-11-13_fr`), Statistik-Snapshot in `docs/STATS-SNAPSHOT.md`. Die App-Datei enthält seit dem Code-Review (siehe oben) Änderungen, die noch veröffentlicht werden müssen.
+
+## Umzug (13.11.2026)
+- Neue App https://claude.ai/artifact/5PuWzbmHKTxpJM9W6xPr12 im Hauptkonto (Capabilities db, user, downloads). Die 26 Einheiten aus `data/sessions-export.json` wurden unverändert nach `data/users/<uid>` kopiert. Die alte App (anderes Konto) bleibt unverändert bestehen.
