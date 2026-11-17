@@ -129,10 +129,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .timer.fin .tv { color: var(--green); }
 .tbtn { height: calc(48px * var(--z, 1)); padding: 0 calc(16px * var(--z, 1)); border-radius: 999px; background: var(--fill); font-size: calc(17px * var(--z, 1)); font-weight: 600; white-space: nowrap; }
 .tbar { position: absolute; left: 0; bottom: 0; height: calc(5px * var(--z, 1)); background: var(--accent); }
+.timer.hard .tv { color: var(--orange); }
+.timer.hard .tbar { background: var(--orange); }
 
 /* Tab Bar */
 .tabbar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--bar); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border-top: .5px solid var(--sep); display: grid; grid-template-columns: 1fr 1fr; padding: 6px 0 calc(6px + env(safe-area-inset-bottom, 0px)); z-index: 30; }
+  border-top: .5px solid var(--sep); display: grid; grid-template-columns: repeat(3, 1fr); padding: 6px 0 calc(6px + env(safe-area-inset-bottom, 0px)); z-index: 30; }
 .tab { display: grid; justify-items: center; gap: 2px; font-size: 10px; font-weight: 500; color: var(--fg2); padding: 2px 0; }
 .tab svg { width: 26px; height: 26px; }
 .tab.on { color: var(--accent); }
@@ -178,6 +180,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .fsel { height: 36px; border: 0; border-radius: 8px; background: var(--fill); color: var(--fg); font: 600 16px var(--font); padding: 0 8px; }
 .tog { width: 22px; height: 22px; accent-color: var(--accent); }
 .scard .note { background: var(--fill); margin: 8px 0; min-height: 80px; font-size: 14px; }
+/* Cardio */
+.meter { height: 10px; border-radius: 999px; background: var(--fill); overflow: hidden; }
+.meter div { height: 100%; background: var(--accent); border-radius: 999px; }
+.meter.full div { background: var(--green-bg); }
+.card .note { background: var(--fill); margin: 4px 0 0; }
+.schart { width: 100%; height: auto; display: block; margin-top: 4px; }
+.sx { font-size: 10px; fill: var(--fg2); }
 .btnrow { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 
 /* Kein versehentliches Markieren (Google-Suchleiste) beim Tippen; Eingabefelder bleiben normal */
@@ -204,6 +213,10 @@ body.typing .timer { display: none; }
   <button class="tab on" id="tabTrain" type="button">
     <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 11v6M24 11v6M7.5 8v12M20.5 8v12M7.5 14h13"/></svg>
     Training
+  </button>
+  <button class="tab" id="tabCardio" type="button">
+    <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 23s-9-5.4-9-12a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 6.6-9 12-9 12z"/><path d="M5.5 14h4l2-3 3 6 2-3h6"/></svg>
+    Cardio
   </button>
   <button class="tab" id="tabHist" type="button">
     <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h20"/><path d="M5 18l5.5-6 4.5 3.5L23 7"/><path d="M18 7h5v5"/></svg>
@@ -245,7 +258,10 @@ const SHORT = { mo: "Mo", di: "Di", mi: "Mi", do: "Do", fr: "Fr", sa: "Sa" };
 const UNIT_LABEL = { "kg": "kg", "kg+": "+kg", "cm": "cm" };
 const ALL_EX = DAYS.flatMap(k => PLAN[k].ex);
 const ID_RE = /^\d{4}-\d{2}-\d{2}_(mo|di|mi|do|fr|sa)$/;   // Dokument-ID einer Einheit
+const CARDIO_RE = /^cardio_\d{4}-\d{2}-\d{2}_\d+$/;            // Dokument-ID eines Cardio-Eintrags (mehrere pro Tag möglich)
 const SETTINGS_ID = "_settings";                               // Einstellungen liegen im selben Konto-Ordner
+const CARDIO_KINDS = ["Heimtrainer", "Walking", "Step-ups", "Marschieren", "Schattenboxen", "Sonstiges"];
+const CARDIO_MODES = { easy: "Locker", intervals: "Intervalle" };
 
 // Rechenannahmen (Schätzungen, siehe docs/DATA-MODEL.md)
 const LEGACY_BW = 90;            // Körpergewicht für Einheiten, die noch kein eigenes "bw" gespeichert haben
@@ -254,7 +270,7 @@ const DELOAD_WEEKS = 6, DELOAD_PLATEAUS = 3;
 // Bänder: gespeichert wird der Nennwert (b: 10|20|30|40); welche kg er tatsächlich hat, steht in den Einstellungen
 const BANDS = [10, 20, 30, 40];
 const BAND_NAMES = { 10: "grün", 20: "gelb", 30: "lila", 40: "rot" };
-const DEFAULTS = { bodyweight: 90, bandFactor: 0.3, sound: true, wakeLock: true };
+const DEFAULTS = { bodyweight: 90, bandFactor: 0.3, sound: true, wakeLock: true, cardioGoal: 150 };
 
 // ---------- Helpers ----------
 const $ = (s) => document.querySelector(s);
@@ -273,7 +289,7 @@ const deDate = (iso, withYear) => { const [y, m, d] = iso.split("-"); return `${
 const dayFromDate = (iso) => { const g = noon(iso).getDay(); return g === 0 ? "mo" : DAYS[g - 1]; };   // Sonntag: Montags-Plan (Nachholen)
 const lsGet = (k, f) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : f; } catch (e) { return f; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
-const byDateDesc = (a, b) => b.date.localeCompare(a.date);
+const byDateDesc = (a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id);
 const exById = (day, id) => PLAN[day] ? PLAN[day].ex.find(x => x.id === id) : undefined;
 const shortName = (ex) => ex.name.split(" (")[0];
 const errText = (e) => (e && (e.code || e.message)) || "unbekannt";
@@ -296,6 +312,7 @@ function normSettings(s) {
     bandKg: Object.fromEntries(BANDS.map(b => [b, pos(bk[b], b, 200)])),
     sound: s.sound !== false,
     wakeLock: s.wakeLock !== false,
+    cardioGoal: Math.round(pos(s.cardioGoal, DEFAULTS.cardioGoal, 2000)),
     deloads: Array.isArray(s.deloads) ? s.deloads.filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x)) : []
   };
 }
@@ -331,9 +348,13 @@ const state = {
   why: "",
   drafts: lsGet("kraftplan-drafts", {}),   // key `${date}_${day}` -> {exId:[{w,r,j,t,b,done}]}
   notes: lsGet("kraftplan-notes", {}),     // key -> Notiz-Entwurf
+  cardio: [],            // [{id:"cardio_<date>_<ms>", date, kind, min, mode:"easy"|"intervals", hr?, note?, savedAt}]
+  cardioDraft: Object.assign({ kind: "Heimtrainer", mode: "easy", min: null, hr: null, note: "" }, lsGet("kraftplan-cardio-draft", {})),
+  iv: Object.assign({ work: 30, rest: 60, rounds: 8 }, lsGet("kraftplan-interval", {})),
   openEx: null, confirmDel: null, pendingRender: false, sheet: null
 };
 const saveDrafts = () => { lsSet("kraftplan-drafts", state.drafts); lsSet("kraftplan-notes", state.notes); };
+const saveCardioDraft = () => { lsSet("kraftplan-cardio-draft", state.cardioDraft); lsSet("kraftplan-interval", state.iv); };
 
 // ---------- Speicher ----------
 let col = null, unsub = null, retryMs = 2000;
@@ -341,12 +362,18 @@ const LS_SESS = "kraftplan-sessions", LS_PENDING = "kraftplan-pending";
 let pending = lsGet(LS_PENDING, {});      // id -> Einheit, die noch in die DB übertragen werden muss
 const savePending = () => lsSet(LS_PENDING, pending);
 const pendingCount = () => Object.keys(pending).length;
-const withPending = (docs) => [...docs.filter(d => !pending[d.id]), ...Object.values(pending)].sort(byDateDesc);
-const upsertLocal = (doc) => { state.sessions = [doc, ...state.sessions.filter(s => s.id !== doc.id)].sort(byDateDesc); };
+const validDoc = (d) => !!d && typeof d.id === "string" && (ID_RE.test(d.id) || CARDIO_RE.test(d.id));
+// Dokumente (plus vorgemerkte) auf Einheiten und Cardio-Einträge verteilen
+function applyDocs(docs) {
+  const all = [...docs.filter(d => validDoc(d) && !pending[d.id]), ...Object.values(pending)].sort(byDateDesc);
+  state.sessions = all.filter(d => ID_RE.test(d.id));
+  state.cardio = all.filter(d => CARDIO_RE.test(d.id));
+}
+const upsertLocal = (doc) => applyDocs([doc, ...state.sessions, ...state.cardio].filter(d => d === doc || d.id !== doc.id));
 const savedSession = (key) => state.sessions.find(s => s.id === key);
 // Fehler, bei denen ein erneuter Versuch nichts bringt (die Eingaben bleiben dann als Entwurf stehen)
 const hardError = (e) => !!(e && ["invalid_argument", "quota_exceeded", "transform_error"].includes(e.code));
-function loadLocal() { state.sessions = withPending(lsGet(LS_SESS, []).filter(s => s && ID_RE.test(s.id))); }
+function loadLocal() { applyDocs(lsGet(LS_SESS, [])); }
 loadLocal();
 
 function goLocal(why) { state.mode = "local"; state.why = why; loadLocal(); cleanDrafts(); softRender(); }
@@ -367,7 +394,7 @@ function subscribe() {
 function onSnap(snap) {
   const reconnected = state.mode !== "db";
   retryMs = 2000; state.mode = "db"; state.why = "";
-  state.sessions = withPending(snap.docs.filter(d => ID_RE.test(d.id)).map(d => ({ id: d.id, ...d.data() })));
+  applyDocs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
   cleanDrafts();
   if (reconnected && pendingCount()) flushQueue();
   if (state.sheet === "stats") renderStats();
@@ -431,6 +458,7 @@ async function deleteSession(id) {
   else throw new Error("Löschen geht nur mit Verbindung zum Konto");
   if (pending[id]) { delete pending[id]; savePending(); }
   state.sessions = state.sessions.filter(s => s.id !== id);
+  state.cardio = state.cardio.filter(s => s.id !== id);
 }
 async function loadSettingsFromDb() {
   try { const s = await col.doc(SETTINGS_ID).get(); if (s && s.exists) { settings = normSettings(s.data()); lsSet(LS_SET, settings); softRender(); } } catch (_) { /* lokale Einstellungen bleiben */ }
@@ -606,7 +634,7 @@ function deloadInfo() {
 // Asynchrone Neuaufbauten (DB-Snapshot u. ä.) warten, solange der Nutzer tippt oder gerade getippt hat
 function softRender() {
   const busy = Date.now() - (state.lastTouch || 0) < 4000;
-  if (state.tab === "train" && (isEditing() || busy)) {
+  if (state.tab !== "hist" && (isEditing() || busy)) {
     state.pendingRender = true; clearTimeout(state.pendingT); state.pendingT = setTimeout(flushRender, 1500); return;
   }
   render();
@@ -631,7 +659,8 @@ function header(title, sub) {
   return `<div class="topline">
     <span class="storage">${storageHtml()}</span>
     <span class="tools">
-      ${state.tab === "train" ? `<button type="button" class="statbtn" id="statsBtn" aria-label="Statistik"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 20V11M12 20V5M19 20v-6"/></svg></button><input type="date" class="datepick" id="datePick" value="${state.date}" aria-label="Datum">` : ""}
+      ${state.tab === "train" ? `<button type="button" class="statbtn" id="statsBtn" aria-label="Statistik"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 20V11M12 20V5M19 20v-6"/></svg></button>` : ""}
+      ${state.tab !== "hist" ? `<input type="date" class="datepick" id="datePick" value="${state.date}" aria-label="Datum">` : ""}
       <button type="button" class="statbtn" id="setBtn" aria-label="Einstellungen"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></button>
       <span class="sizer"><button type="button" id="zoomOut" aria-label="Kleiner" ${zoomIdx === 0 ? "disabled" : ""}>A</button><button type="button" id="zoomIn" aria-label="Größer" ${zoomIdx === ZOOMS.length - 1 ? "disabled" : ""}>A</button></span>
     </span>
@@ -643,7 +672,7 @@ function weekHtml() {
   const ws = weekStart(today), todayDay = isSunday(today) ? null : dayFromDate(today);
   const done = DAYS.filter((k, i) => savedSession(`${addDays(ws, i)}_${k}`));
   const seg = `<div class="seg" role="tablist">${DAYS.map(k => `<button type="button" role="tab" data-day="${k}" class="${k === state.day ? "on" : ""} ${k === todayDay ? "today" : ""} ${done.includes(k) ? "done" : ""}" aria-selected="${k === state.day}" aria-label="${PLAN[k].name}${done.includes(k) ? ", diese Woche erledigt" : ""}">${SHORT[k]}</button>`).join("")}</div>`;
-  return seg + `<p class="weekline">Diese Woche: ${done.length} von ${DAYS.length} Einheiten erledigt</p>`;
+  return seg + `<p class="weekline">Diese Woche: ${done.length} von ${DAYS.length} Einheiten erledigt · Cardio ${cardioWeekMin(ws)} von ${settings.cardioGoal} Min.</p>`;
 }
 function deloadHtml() {
   const d = deloadInfo();
@@ -757,17 +786,106 @@ function renderHist() {
   return h + `</section>`;
 }
 
+// ---------- Cardio ----------
+const cardioWeekMin = (ws) => state.cardio.filter(c => weekStart(c.date) === ws).reduce((a, c) => a + (+c.min || 0), 0);
+// Balken: Cardio-Minuten der letzten 8 Kalenderwochen, gestrichelt das Wochenziel
+function cardioBars() {
+  const ws = weekStart(today), weeks = Array.from({ length: 8 }, (_, i) => addDays(ws, -7 * (7 - i)));
+  const vals = weeks.map(cardioWeekMin), goal = settings.cardioGoal;
+  if (!vals.some(v => v > 0)) return "";
+  const W = 320, H = 96, pb = 16, top = 6, hi = Math.max(goal, ...vals) * 1.08, bw = W / weeks.length;
+  const y = (v) => H - pb - v / hi * (H - pb - top);
+  const bars = vals.map((v, i) => `<rect x="${(i * bw + 5).toFixed(1)}" y="${y(v).toFixed(1)}" width="${(bw - 10).toFixed(1)}" height="${(H - pb - y(v)).toFixed(1)}" rx="3" fill="${v >= goal ? "var(--green-bg)" : "var(--accent)"}" opacity="${i === weeks.length - 1 ? 1 : 0.7}"><title>Woche ab ${deDate(weeks[i])}: ${v} Min.</title></rect>`).join("");
+  return `<svg class="schart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Cardio-Minuten der letzten 8 Wochen">${bars}<line x1="0" x2="${W}" y1="${y(goal).toFixed(1)}" y2="${y(goal).toFixed(1)}" stroke="var(--fg3)" stroke-dasharray="4 4"/><text class="sx" x="2" y="${H - 3}">${deDate(weeks[0])}</text><text class="sx" x="${W - 2}" y="${H - 3}" text-anchor="end">diese Woche</text></svg>`;
+}
+const ivTotalMin = () => Math.round((180 + state.iv.rounds * (state.iv.work + state.iv.rest)) / 60);
+function renderCardio() {
+  const cd = state.cardioDraft, ws = weekStart(today), wk = cardioWeekMin(ws), goal = settings.cardioGoal, iv = state.iv;
+  const chip = (attr, val, on, label) => `<button type="button" class="chip jump ${on ? "on" : ""}" ${attr}="${val}" aria-pressed="${on}">${on ? "✓ " : ""}${esc(label)}</button>`;
+  let h = header("Cardio", `Herz-Kreislauf · Ziel ${goal} Min. pro Woche`);
+  h += `<div class="group-h"><span>Diese Woche</span><span>${wk} von ${goal} Min.</span></div>
+  <section class="card"><div class="ex-head">
+    <div class="meter ${wk >= goal ? "full" : ""}"><div style="width:${Math.min(100, Math.round(wk / goal * 100))}%"></div></div>
+    <div class="last">${wk >= goal ? "<b>✓ Wochenziel erreicht</b>" : `Noch <b>${goal - wk} Min.</b> bis zum Wochenziel`}</div>
+    ${cardioBars()}
+  </div></section>`;
+  h += `<div class="group-h"><span>Neuer Eintrag · ${deDate(state.date, true)}</span></div>
+  <section class="card"><div class="ex-head">
+    <div class="chips">${CARDIO_KINDS.map(k => chip("data-ckind", k, cd.kind === k, k)).join("")}</div>
+    <div class="chips">${Object.entries(CARDIO_MODES).map(([k, l]) => chip("data-cmode", k, cd.mode === k, l)).join("")}</div>
+    <label class="frow"><span>Minuten</span><input class="num sm" id="cMin" inputmode="numeric" placeholder="20" value="${cd.min == null ? "" : cd.min}"></label>
+    <label class="frow"><span>Ø Puls <span class="sdim">(optional)</span></span><input class="num sm" id="cHr" inputmode="numeric" placeholder="–" value="${cd.hr == null ? "" : cd.hr}"></label>
+    <textarea class="note" id="cNote" rows="2" placeholder="Notiz (optional), z. B. Stufe 6, Rücken ok">${esc(cd.note || "")}</textarea>
+    <div class="tip">Locker = du kannst dabei noch ganze Sätze sprechen. Das sollte der Großteil sein.</div>
+  </div></section>
+  <div class="savebar" style="margin-bottom:28px"><button class="btn" id="cSave" type="button" ${state.saving ? "disabled" : ""}>${state.saving ? "Speichert …" : "Cardio speichern"}</button></div>`;
+  h += `<div class="group-h"><span>Intervall-Timer</span><span>${ivTotalMin()} Min.</span></div>
+  <section class="card"><div class="ex-head">
+    <div class="tip">3 Min. locker aufwärmen, dann im Wechsel zügig und locker. Zügig heißt anstrengend, aber kein Vollgas. Am Ende werden die Minuten als Intervall-Eintrag vorgeschlagen.</div>
+    <label class="frow"><span>Zügig</span><span class="fin"><input class="num sm" id="ivWork" inputmode="numeric" value="${iv.work}"> s</span></label>
+    <label class="frow"><span>Locker</span><span class="fin"><input class="num sm" id="ivRest" inputmode="numeric" value="${iv.rest}"> s</span></label>
+    <label class="frow"><span>Runden</span><input class="num sm" id="ivRounds" inputmode="numeric" value="${iv.rounds}"></label>
+    <button type="button" class="pill" id="ivStart">${seq ? "Intervalle laufen …" : "Intervalle starten"}</button>
+  </div></section>`;
+  h += `<div class="group-h"><span>Letzte Einträge</span></div><section class="card">`;
+  if (!state.cardio.length) h += `<div class="empty"><strong>Noch kein Cardio</strong>Trag oben Art und Minuten ein und tippe auf „Cardio speichern“.</div>`;
+  for (const c of state.cardio.slice(0, 30)) {
+    const conf = state.confirmDel === c.id;
+    const sub = [`${c.min} Min.`, CARDIO_MODES[c.mode] || "", c.hr ? `Ø ${c.hr} Puls` : "", pending[c.id] ? "wartet auf Übertragung" : "", c.note || ""].filter(Boolean).join(" · ");
+    h += `<div class="li"><span class="li-main"><span class="li-title">${esc(c.kind || "Cardio")}, ${deDate(c.date, true)}</span><div class="li-sub">${esc(sub)}</div></span>
+      <button type="button" class="del ${conf ? "confirm" : ""}" data-del="${esc(c.id)}">${conf ? "Wirklich löschen" : "Löschen"}</button></div>`;
+  }
+  return h + `</section>`;
+}
+async function saveCardio() {
+  if (state.saving) return;
+  const cd = state.cardioDraft, min = Math.round(num(cd.min) || 0);
+  if (!(min > 0 && min <= 600)) { toast("Trag die Minuten ein"); return; }
+  const doc = { id: `cardio_${state.date}_${Date.now()}`, date: state.date, kind: CARDIO_KINDS.includes(cd.kind) ? cd.kind : "Sonstiges", min, mode: cd.mode === "intervals" ? "intervals" : "easy", savedAt: new Date().toISOString() };
+  const hr = Math.round(num(cd.hr) || 0); if (hr >= 40 && hr <= 230) doc.hr = hr;
+  if (cd.note && cd.note.trim()) doc.note = cd.note.trim();
+  state.saving = true; render();
+  try {
+    const where = await writeSession(doc);
+    state.cardioDraft = { kind: cd.kind, mode: "easy", min: null, hr: null, note: "" }; saveCardioDraft();
+    const wk = cardioWeekMin(weekStart(today)), goal = settings.cardioGoal;
+    toast(`${where === "queued" ? "✓ Vorgemerkt" : "✓ Gespeichert"}: ${min} Min. · Woche ${wk} von ${goal} Min.${wk >= goal && wk - min < goal ? " · 🏆 Wochenziel erreicht" : ""}`, 4000);
+  } catch (err) { toast("Speichern fehlgeschlagen: " + errText(err) + ". Deine Eingaben bleiben erhalten.", 5000); }
+  state.saving = false; render();
+}
+function startIntervals() {
+  const { work, rest, rounds } = state.iv, phases = [{ sec: 180, label: "Aufwärmen · locker" }];
+  for (let r = 1; r <= rounds; r++) {
+    phases.push({ sec: work, label: `Zügig · Runde ${r} von ${rounds}`, hard: true });
+    phases.push({ sec: rest, label: r === rounds ? "Auslaufen · locker" : `Locker · Runde ${r} von ${rounds}` });
+  }
+  seq = { phases, i: 0 }; runPhase();
+}
+function runPhase() { const p = seq.phases[seq.i]; startTimer(p.sec, p.label, true); $("#timer").classList.toggle("hard", !!p.hard); }
+function finishIntervals() {
+  const total = Math.round(seq.phases.reduce((a, p) => a + p.sec, 0) / 60); seq = null;
+  if (state.cardioDraft.min == null) { state.cardioDraft.min = total; state.cardioDraft.mode = "intervals"; saveCardioDraft(); }
+  toast(`Intervalle geschafft · ${total} Min. – jetzt „Cardio speichern“`, 5000);
+  softRender();
+}
+
 function render() {
   state.pendingRender = false;
-  $("#app").innerHTML = state.tab === "train" ? renderTrain() : renderHist();
-  $("#tabTrain").classList.toggle("on", state.tab === "train");
-  $("#tabHist").classList.toggle("on", state.tab === "hist");
+  $("#app").innerHTML = state.tab === "train" ? renderTrain() : state.tab === "cardio" ? renderCardio() : renderHist();
+  for (const [id, tab] of Object.entries(TABS)) $("#" + id).classList.toggle("on", state.tab === tab);
 }
 
 // ---------- Events ----------
 $("#app").addEventListener("input", (e) => {
   const t = e.target;
   if (t.id === "noteIn") { state.notes[draftKey()] = t.value; saveDrafts(); refreshSaveBar(); return; }
+  if (t.id === "cMin" || t.id === "cHr") { state.cardioDraft[t.id === "cMin" ? "min" : "hr"] = num(t.value); saveCardioDraft(); return; }
+  if (t.id === "cNote") { state.cardioDraft.note = t.value; saveCardioDraft(); return; }
+  if (/^iv(Work|Rest|Rounds)$/.test(t.id)) {
+    const v = Math.round(num(t.value) || 0), k = t.id.slice(2).toLowerCase(), lim = k === "rounds" ? [1, 30] : [5, 600];
+    if (v >= lim[0] && v <= lim[1]) { state.iv[k] = v; saveCardioDraft(); }
+    return;
+  }
   if (t.dataset && t.dataset.ex) {
     const ex = exById(state.day, t.dataset.ex); if (!ex) return;
     const s = draftFor(ex.id, ex.sets)[+t.dataset.i]; if (!s) return;
@@ -814,6 +932,10 @@ $("#app").addEventListener("click", async (e) => {
     try { await storeSettings({ ...settings, deloads: list.slice(-30) }); } catch (err) { toast("Speichern fehlgeschlagen: " + errText(err), 4000); }
     render(); return;
   }
+  if (b.dataset.ckind) { state.cardioDraft.kind = b.dataset.ckind; saveCardioDraft(); render(); return; }
+  if (b.dataset.cmode) { state.cardioDraft.mode = b.dataset.cmode; saveCardioDraft(); render(); return; }
+  if (b.id === "cSave") { await saveCardio(); return; }
+  if (b.id === "ivStart") { if (!seq) startIntervals(); render(); return; }
   if (b.id === "statsBtn") { openSheet("stats"); return; }
   if (b.id === "setBtn") { openSheet("settings"); return; }
   if (b.id === "saveBtn") { await save(); return; }
@@ -861,18 +983,17 @@ async function save() {
 // Tab-Leiste: Tipp zählt nur, wenn er auf dem Tab begann und nicht direkt auf einen anderen Tipp folgte (Fehltipps beim Speichern)
 let tabDown = { id: "", t: 0 };
 document.querySelector(".tabbar").addEventListener("pointerdown", (e) => { const b = e.target.closest("button"); tabDown = { id: b ? b.id : "", t: Date.now() }; });
+const TABS = { tabTrain: "train", tabCardio: "cardio", tabHist: "hist" };
 function tabClick(id, e) {
   const tapOk = tabDown.id === id && Date.now() - tabDown.t < 1500;
   if (e.detail !== 0 && (!tapOk || Date.now() - (state.lastOtherDown || 0) < 2500)) return;
   if (Date.now() < (state.tabLock || 0)) return;
-  if (id === "tabHist") {
-    if (unsavedChanges() && !(Date.now() < (state.warnUntil || 0))) { state.warnUntil = Date.now() + 5000; toast("Noch nicht gespeichert! Tippe auf „Training speichern“. Zum Wechseln nochmal tippen.", 4500); return; }
-    state.tab = "hist"; state.confirmDel = null;
-  } else state.tab = "train";
+  const to = TABS[id];
+  if (to !== "train" && unsavedChanges() && !(Date.now() < (state.warnUntil || 0))) { state.warnUntil = Date.now() + 5000; toast("Noch nicht gespeichert! Tippe auf „Training speichern“. Zum Wechseln nochmal tippen.", 4500); return; }
+  state.tab = to; state.confirmDel = null;
   render(); window.scrollTo({ top: 0 });
 }
-$("#tabTrain").addEventListener("click", (e) => tabClick("tabTrain", e));
-$("#tabHist").addEventListener("click", (e) => tabClick("tabHist", e));
+for (const id of Object.keys(TABS)) $("#" + id).addEventListener("click", (e) => tabClick(id, e));
 
 // ---------- Statistik ----------
 const pct = (a, b) => b > 0 ? Math.round((a - b) / b * 100) : null;
@@ -957,10 +1078,15 @@ function renderSettings() {
     <label class="frow"><span>Ton am Ende der Pause</span><input type="checkbox" class="tog" id="setSound" ${s.sound ? "checked" : ""}></label>
     <label class="frow"><span>Bildschirm während der Pause anlassen</span><input type="checkbox" class="tog" id="setWake" ${s.wakeLock ? "checked" : ""}></label>
   </div>
+  <h3 class="sday">Cardio</h3>
+  <div class="scard">
+    <label class="frow"><span>Wochenziel</span><span class="fin">${inp("setCg", s.cardioGoal)} Min.</span></label>
+    <p class="mnote">Richtwert für Erwachsene: mindestens 150 Min. lockere Ausdauer pro Woche.</p>
+  </div>
   <button type="button" class="btn" id="setSave" style="width:100%">Einstellungen speichern</button>
   <h3 class="sday">Daten</h3>
   <div class="scard">
-    <div class="frow"><span>Export (${state.sessions.length} Einheiten, JSON)</span><span class="btnrow"><button type="button" class="pill" id="expSave">Datei</button><button type="button" class="pill" id="expCopy">Kopieren</button></span></div>
+    <div class="frow"><span>Export (${state.sessions.length} Einheiten, ${state.cardio.length} Cardio, JSON)</span><span class="btnrow"><button type="button" class="pill" id="expSave">Datei</button><button type="button" class="pill" id="expCopy">Kopieren</button></span></div>
     <div class="frow"><span>Import aus Datei</span><input type="file" id="impFile" accept=".json,application/json" style="max-width:180px;font-size:13px"></div>
     <textarea class="note" id="impText" placeholder="… oder exportiertes JSON hier einfügen"></textarea>
     <div class="frow"><span id="impInfo" class="sdim">Vorhandene Einheiten werden nur mit Bestätigung überschrieben.</span><button type="button" class="pill" id="impRun">Prüfen</button></div>
@@ -969,7 +1095,7 @@ function renderSettings() {
 }
 function readSettingsForm() {
   const v = (id) => num($("#" + id).value);
-  return { ...settings, bodyweight: v("setBw"), bandFactor: v("setBf"), bandKg: Object.fromEntries(BANDS.map(b => [b, v("setBand" + b)])), sound: $("#setSound").checked, wakeLock: $("#setWake").checked };
+  return { ...settings, bodyweight: v("setBw"), bandFactor: v("setBf"), bandKg: Object.fromEntries(BANDS.map(b => [b, v("setBand" + b)])), sound: $("#setSound").checked, wakeLock: $("#setWake").checked, cardioGoal: v("setCg") };
 }
 function updateCalc() {
   const b = +$("#calBand").value, f = calcBandFactor(num($("#setBw").value) || settings.bodyweight, num($("#calR0").value), num($("#calR1").value), num($("#setBand" + b).value) || b);
@@ -979,12 +1105,14 @@ function updateCalc() {
   $("#calApply").disabled = !ok;
 }
 const exportDoc = (s) => ({ id: s.id, date: s.date, day: s.day, entries: s.entries, savedAt: s.savedAt, ...(s.bw != null ? { bw: s.bw } : {}), ...(s.note ? { note: s.note } : {}) });
-const exportJson = () => JSON.stringify({ app: "kraftplan", version: 1, exportedAt: new Date().toISOString(), settings, sessions: state.sessions.map(exportDoc) }, null, 1);
+const cardioDoc = (c) => ({ id: c.id, date: c.id.slice(7, 17), kind: CARDIO_KINDS.includes(c.kind) ? c.kind : "Sonstiges", min: Math.round(+c.min), mode: c.mode === "intervals" ? "intervals" : "easy", savedAt: c.savedAt || new Date().toISOString(), ...(+c.hr > 0 ? { hr: Math.round(+c.hr) } : {}), ...(c.note ? { note: String(c.note) } : {}) });
+const exportJson = () => JSON.stringify({ app: "kraftplan", version: 1, exportedAt: new Date().toISOString(), settings, sessions: state.sessions.map(exportDoc), cardio: state.cardio.map(cardioDoc) }, null, 1);
 // Akzeptiert den App-Export ({sessions:[…]}) oder eine reine Liste wie data/sessions-export.json
 function parseImport(text) {
   const j = JSON.parse(text);
-  const arr = Array.isArray(j) ? j : j && Array.isArray(j.sessions) ? j.sessions : null;
-  if (!arr) throw new Error("Keine Einheiten gefunden");
+  const arr = Array.isArray(j) ? j : j && Array.isArray(j.sessions) ? j.sessions : [];
+  const carr = j && !Array.isArray(j) && Array.isArray(j.cardio) ? j.cardio : [];
+  if (!arr.length && !carr.length) throw new Error("Keine Einheiten gefunden");
   const docs = arr.filter(d => d && typeof d.id === "string" && ID_RE.test(d.id) && d.entries && typeof d.entries === "object" && !Array.isArray(d.entries))
     .map(d => exportDoc({ ...d, date: d.id.slice(0, 10), day: dayOfKey(d.id), savedAt: d.savedAt || new Date().toISOString() }));
   const plan = { add: [], change: [], same: 0, skipped: arr.length - docs.length };
@@ -992,6 +1120,12 @@ function parseImport(text) {
     const cur = savedSession(d.id);
     if (!cur) plan.add.push(d);
     else if (normEntries(cur.entries) !== normEntries(d.entries) || (cur.note || "") !== (d.note || "")) plan.change.push(d);
+    else plan.same++;
+  }
+  for (const c of carr.filter(c => c && typeof c.id === "string" && CARDIO_RE.test(c.id) && +c.min > 0).map(cardioDoc)) {
+    const cur = state.cardio.find(x => x.id === c.id);
+    if (!cur) plan.add.push(c);
+    else if (JSON.stringify({ ...cardioDoc(cur), savedAt: 0 }) !== JSON.stringify({ ...c, savedAt: 0 })) plan.change.push(c);
     else plan.same++;
   }
   return plan;
@@ -1083,17 +1217,18 @@ if (window.visualViewport) { visualViewport.addEventListener("resize", placeTime
 
 // ---------- Timer: Ton, Vibration, Bildschirm anlassen ----------
 let tEnd = 0, tTotal = 0, tInt = null, tHide = null, tLabel = "", actx = null, wake = null, wakeT = null;
+let seq = null;   // laufende Intervall-Folge {phases:[{sec,label,hard}], i}
 function primeAudio() {   // muss aus einem Tipp heraus passieren, sonst bleibt der Ton stumm
   if (!settings.sound) return;
   try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === "suspended") actx.resume(); } catch (_) { actx = null; }
 }
-function beep() {
+function beep(n = 3) {
   if (!settings.sound || !actx) return;
   try {
     const t0 = actx.currentTime;
-    [0, 0.25, 0.5].forEach((d, i) => {
+    [0, 0.25, 0.5].slice(0, n).forEach((d, i) => {
       const o = actx.createOscillator(), g = actx.createGain();
-      o.frequency.value = i === 2 ? 1320 : 880;
+      o.frequency.value = i === 2 || n === 1 ? 1320 : 880;
       g.gain.setValueAtTime(0.0001, t0 + d); g.gain.exponentialRampToValueAtTime(0.3, t0 + d + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d + 0.18);
       o.connect(g); g.connect(actx.destination); o.start(t0 + d); o.stop(t0 + d + 0.2);
     });
@@ -1107,18 +1242,25 @@ async function keepAwake(on) {
     } else if (!on && wake) { const w = wake; wake = null; await w.release(); }
   } catch (_) { wake = null; }
 }
-function startTimer(sec, label) {
+// raw: Beschriftung ohne „Pause ·“ (Intervall-Phasen); ein normaler Pausen-Timer beendet laufende Intervalle
+function startTimer(sec, label, raw) {
+  if (!raw) { seq = null; $("#timer").classList.remove("hard"); }
   clearTimeout(tHide); tTotal = sec; tEnd = Date.now() + sec * 1000; tLabel = label;
   primeAudio(); keepAwake(true);
-  $("#timerLabel").textContent = "Pause · " + label; $("#timer").classList.remove("fin"); $("#timer").hidden = false; placeTimer();
+  $("#timerLabel").textContent = raw ? label : "Pause · " + label; $("#timer").classList.remove("fin"); $("#timer").hidden = false; placeTimer();
   clearInterval(tInt); tInt = setInterval(tick, 250); tick();
 }
 function tick() {
   const left = Math.max(0, Math.ceil((tEnd - Date.now()) / 1000));
   $("#timerVal").textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
   $("#timerBar").style.width = (100 * left / tTotal) + "%";
+  if (left === 0 && seq && seq.i < seq.phases.length - 1) {   // nächste Intervall-Phase
+    beep(1); try { navigator.vibrate && navigator.vibrate(300); } catch (_) {}
+    seq.i++; runPhase(); return;
+  }
   if (left === 0) {
     clearInterval(tInt); beep();
+    if (seq) { $("#timer").classList.remove("hard"); finishIntervals(); }
     try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (_) {}
     $("#timer").classList.add("fin"); $("#timerVal").textContent = "Weiter!";
     tHide = setTimeout(() => $("#timer").hidden = true, 4000);
@@ -1126,7 +1268,7 @@ function tick() {
   }
 }
 $("#timerPlus").addEventListener("click", () => { if ($("#timer").classList.contains("fin")) return startTimer(15, tLabel); tEnd += 15000; tTotal += 15; tick(); });
-$("#timerStop").addEventListener("click", () => { clearInterval(tInt); clearTimeout(tHide); tEnd = 0; $("#timer").hidden = true; });
+$("#timerStop").addEventListener("click", () => { clearInterval(tInt); clearTimeout(tHide); tEnd = 0; $("#timer").hidden = true; if (seq) { seq = null; $("#timer").classList.remove("hard"); softRender(); } });
 
 let toastT = null;
 function toast(msg, ms) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, ms || 2200); }
