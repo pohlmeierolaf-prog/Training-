@@ -150,33 +150,5 @@ async function more() {
   // 20) Einstellungen und Statistik rendern
   openSheet("settings"); check("Einstellungen rendern", /Band-Faktor messen/.test(els["#setBody"].innerHTML)); closeSheet();
   state.sessions = all(); openSheet("stats"); check("Statistik zeigt Zeit unter Spannung", /Zeit unter Spannung/.test(els["#statsBody"].innerHTML)); closeSheet();
-  // 21) Cardio: Eintrag speichern, Wochensumme, Trennung von Einheiten
-  state.mode = "local"; localStorage.setItem(LS_SESS, JSON.stringify(__sessions)); loadLocal(); state.saving = false;
-  today = "2026-11-18"; state.date = today; state.tab = "cardio"; render();
-  check("Cardio-Tab rendert", /Cardio speichern/.test(els["#app"].innerHTML) && /Intervall-Timer/.test(els["#app"].innerHTML));
-  els["#app"].handlers.input[0]({ target: { id: "cMin", dataset: {}, value: "25" } });
-  await click({ dataset: { ckind: "Walking" } });
-  await click({ id: "cSave" });
-  check("Cardio-Eintrag gespeichert", state.cardio.length === 1 && state.cardio[0].min === 25 && state.cardio[0].kind === "Walking" && CARDIO_RE.test(state.cardio[0].id));
-  check("Cardio zählt nicht als Krafteinheit", state.sessions.length === __sessions.length);
-  state.date = "2026-11-16"; els["#app"].handlers.input[0]({ target: { id: "cMin", dataset: {}, value: "20" } }); await click({ id: "cSave" });
-  state.date = "2026-11-10"; els["#app"].handlers.input[0]({ target: { id: "cMin", dataset: {}, value: "30" } }); await click({ id: "cSave" });
-  check("Cardio-Wochensumme nur laufende Woche", cardioWeekMin(weekStart(today)) === 45);
-  els["#app"].handlers.input[0]({ target: { id: "cMin", dataset: {}, value: "" } });
-  const n0 = state.cardio.length; await click({ id: "cSave" });
-  check("Cardio ohne Minuten wird nicht gespeichert", state.cardio.length === n0);
-  check("Training zeigt Cardio-Wochenstand", (state.tab = "train", render(), /Cardio 45 von 150 Min\./.test(els["#app"].innerHTML)));
-  const ex2 = parseImport(exportJson());
-  check("Export/Import enthält Cardio", ex2.add.length === 0 && ex2.change.length === 0 && ex2.same === __sessions.length + 3);
-  await deleteSession(state.cardio[0].id);
-  check("Cardio-Eintrag löschen", state.cardio.length === 2 && lsGet(LS_SESS, []).filter(d => CARDIO_RE.test(d.id)).length === 2);
-  // 22) Intervall-Timer: Phasen laufen durch und schlagen die Minuten vor
-  state.cardioDraft.min = null; state.iv = { work: 30, rest: 60, rounds: 2 };
-  startIntervals();
-  check("Intervalle: 1 + 2×2 Phasen", seq.phases.length === 5 && $("#timerLabel").textContent === "Aufwärmen · locker");
-  for (let k = 0; k < 5; k++) { tEnd = Date.now() - 1; tick(); }
-  check("Intervalle beendet, Minuten vorgeschlagen", seq === null && state.cardioDraft.min === 6 && state.cardioDraft.mode === "intervals");
-  startIntervals(); startTimer(60, "Rudern");
-  check("normale Pause beendet Intervalle", seq === null);
 }`;
 try { new Function(code)(); } catch (e) { console.log("FEHLER", e.stack.split("\n").slice(0, 3).join("\n")); process.exit(1); }

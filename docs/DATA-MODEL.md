@@ -54,13 +54,6 @@ Band-Faktor messen: `f = (BW − BW·(1+r0/30)/(1+r1/30)) / Band-kg` (gleiche Ep
 ## Progression (`progression`, Hinweis „Steigern / Last halten“)
 Alle Sätze der letzten Einheit ≥ `max` → „Steigern“: Klimmzug mit Absprung → Band (rot), mit Band → nächst schwächeres Band, grün → ohne Band, ohne Hilfe → +`step` kg; Pallof → stärkeres Band; sonst +`step` kg bzw. cm, ohne Einheit „langsamer oder +2 Wdh.“, bei `repUnit` „länger halten“. Sonst „Last halten“. Vorschlagswerte in den Feldern = letzte Einheit (bzw. `start`).
 
-## Cardio (Tab „Cardio“, seit 17.11.2026)
-- Dokumente in derselben Collection, ID `cardio_YYYY-MM-DD_<ms>` (mehrere pro Tag): `{id, date, kind, min, mode: "easy"|"intervals", savedAt, hr?, note?}`; `kind` ∈ Heimtrainer, Walking, Step-ups, Marschieren, Schattenboxen, Sonstiges.
-- Die App trennt beim Laden über das ID-Muster: `state.sessions` (Krafteinheiten) und `state.cardio`. Cardio zählt nicht in Statistik, Deload oder „Wochen trainiert“.
-- Wochenziel `settings.cardioGoal` (Standard 150 Min.); Anzeige im Cardio-Tab (Balken der letzten 8 Wochen) und in der Wochenzeile des Trainings-Tabs.
-- Intervall-Timer: 3 Min. Aufwärmen, dann `rounds` × (`work` s zügig, `rest` s locker), Werte in `localStorage["kraftplan-interval"]`; am Ende werden die Minuten als Intervall-Eintrag vorgeschlagen. Ein normaler Pausen-Timer beendet laufende Intervalle.
-- Entwurf des Cardio-Formulars: `localStorage["kraftplan-cardio-draft"]`. Export/Import enthalten `cardio`.
-
 ## Weitere Funktionen
 - **Bestwerte**: beim Speichern Vergleich mit allen anderen Einheiten (Kraft, sonst Hauptwert) → Toast „🏆 Bestwert“; in der Statistik „Bestwert“-Zeilen.
 - **Deload**: Hinweis, wenn die 6 Wochen vor der laufenden Woche ohne Lücke trainiert wurden (Deload-Wochen unterbrechen) oder ≥ 3 Übungen im Plateau sind; „Diese Woche ist Deload“ speichert den Montag in `settings.deloads`.
