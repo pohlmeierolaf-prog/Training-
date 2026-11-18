@@ -319,7 +319,7 @@ const byStrength = (bs) => [...bs].sort((a, b) => (settings.bandKg[b] ?? b) - (s
 
 // Last pro Wiederholung. forStrength: nur tatsächlich bewegtes Gewicht (Absprung zählt nicht, Haltezeit ohne Faktor)
 function setLoad(ex, s, bw, forStrength) {
-  if (ex.bandOnly) return forStrength ? 0 : bandsLoad(s);
+  if (ex.bandOnly) return bandsLoad(s);   // Band-Last (Schätzung) zählt auch für die Kraft
   if (ex.bw === "pull") {
     const base = bw + (+s.w || 0);
     if (bandsOf(s).length) return Math.max(0, base - bandsLoad(s));
@@ -572,7 +572,7 @@ function statSeries(ex, sessions = state.sessions) {
   }
   pts.sort((a, b) => a.date.localeCompare(b.date));
   const tut = ex.repUnit === "s";
-  const eOk = !!(ex.bw || ex.unit === "kg" || ex.unit === "kg+") && !tut;
+  const eOk = !!(ex.bw || ex.bandOnly || ex.unit === "kg" || ex.unit === "kg+") && !tut;
   const useVol = !!(ex.bw || ex.bandOnly || ex.unit === "kg" || ex.unit === "kg+") && pts.length > 0 && pts.every(p => p.hasW);
   return {
     tut, eOk, useVol, label: tut ? "Zeit unter Spannung" : "Volumen",
@@ -916,7 +916,7 @@ function renderStats() {
   }
   const planWeeks = firstDate ? Math.max(1, Math.round((noon(weekStart(today)) - noon(weekStart(firstDate))) / 604800000) + 1) : 0;
   let html = `<div class="stiles"><div class="stile"><b>${wkSet.size}</b><span>Wochen trainiert</span><small>Wochen mit mindestens einer Einheit</small></div><div class="stile"><b>${planWeeks}</b><span>Wochen mit diesem Plan</span><small>${firstDate ? "seit " + deDate(firstDate, true) : "noch nicht gestartet"}</small></div></div>`;
-  html += `<p class="mnote">Volumen = Gewicht × Wiederholungen aller Sätze. Übungen ohne Gewicht zeigen die Wiederholungen, Zeitübungen die Zeit unter Spannung (Summe der Sekunden). Klimmzüge und Liegestütze sind mit dem Körpergewicht gerechnet, das mit der Einheit gespeichert wurde (ältere Einheiten: ${LEGACY_BW} kg, aktuell eingestellt: ${fmt(settings.bodyweight, 1)} kg): Klimmzüge mit Absprung zählen ${Math.round(JUMP_FACTOR * 100)} %, mit Band wird ${fmt(settings.bandFactor)} × Band-Wert vom Körpergewicht abgezogen (beim Pallof Press zählt das als Last), Liegestütze 64 % des Körpergewichts plus 0,2 % je cm Fußhöhe, bei langsamem Tempo mit Haltezeit ${fmt(TEMPO_FACTOR)}-fach. „Gesamt“ vergleicht deine letzte Einheit mit der ersten, „Vorwoche“ mit der Einheit der Woche davor. Kraft = geschätztes Maximalgewicht für eine Wiederholung (Epley-Formel) aus deinem besten Satz. Sie steigt, wenn du schwerer trainierst, auch wenn die Wiederholungen sinken und das Volumen dadurch fällt. Sätze mit Absprung und die Haltezeit bei Liegestützen fließen in die Kraft nicht ein, nur das tatsächlich bewegte Gewicht.</p>`;
+  html += `<p class="mnote">Volumen = Gewicht × Wiederholungen aller Sätze. Übungen ohne Gewicht zeigen die Wiederholungen, Zeitübungen die Zeit unter Spannung (Summe der Sekunden). Klimmzüge und Liegestütze sind mit dem Körpergewicht gerechnet, das mit der Einheit gespeichert wurde (ältere Einheiten: ${LEGACY_BW} kg, aktuell eingestellt: ${fmt(settings.bodyweight, 1)} kg): Klimmzüge mit Absprung zählen ${Math.round(JUMP_FACTOR * 100)} %, mit Band wird ${fmt(settings.bandFactor)} × Band-Wert vom Körpergewicht abgezogen (beim Pallof Press zählt das als Last), Liegestütze 64 % des Körpergewichts plus 0,2 % je cm Fußhöhe, bei langsamem Tempo mit Haltezeit ${fmt(TEMPO_FACTOR)}-fach. „Gesamt“ vergleicht deine letzte Einheit mit der ersten, „Vorwoche“ mit der Einheit der Woche davor. Kraft = geschätztes Maximalgewicht für eine Wiederholung (Epley-Formel) aus deinem besten Satz. Sie steigt, wenn du schwerer trainierst, auch wenn die Wiederholungen sinken und das Volumen dadurch fällt. Beim Pallof Press ist die Kraft aus der geschätzten Band-Last berechnet (Band-kg × Band-Faktor) und daher nur ein grober Richtwert. Sätze mit Absprung und die Haltezeit bei Liegestützen fließen in die Kraft nicht ein, nur das tatsächlich bewegte Gewicht.</p>`;
   for (const dk of DAYS) {
     const d = PLAN[dk];
     html += `<h3 class="sday">${esc(d.name)} · ${esc(d.focus)}</h3>`;

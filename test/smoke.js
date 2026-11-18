@@ -173,6 +173,7 @@ async function more() {
   await click({ dataset: { assist: "pallof", mode: "none" } });
   check("'Kein Band' löscht alle", assistCur(draftFor("pallof", 2)).main === "none");
   check("altes Format b:30 = Auswahl lila", setLoad(PLAN.mi.ex[2], { r: 10, b: 30 }, 90) === 30 * settings.bandFactor && normEntries({ p: [{ r: 1, b: 30 }] }) === normEntries({ p: [{ r: 1, bs: [30] }] }));
+  check("Pallof hat Kraftwert aus Band-Last", Math.abs(statSeries(PLAN.mi.ex[2], [{ id: "x", date: "2026-11-18", day: "mi", entries: { pallof: [{ r: 12, bs: [10, 30] }] } }]).pts[0].e - (settings.bandKg[10] + settings.bandKg[30]) * settings.bandFactor * 1.4) < 1e-9);
   check("Klimmzug mit Kombination → ein Band weglassen", progression(PLAN.mi.ex[0], { date: "x", sets: [0, 1, 2].map(() => ({ w: 0, r: 12, bs: [10, 30] })) }).text.includes("grün weglassen"));
 }`;
 try { new Function(code)(); } catch (e) { console.log("FEHLER", e.stack.split("\n").slice(0, 3).join("\n")); process.exit(1); }

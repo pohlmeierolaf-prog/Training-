@@ -47,7 +47,7 @@ Band-Faktor messen: `f = (BW − BW·(1+r0/30)/(1+r1/30)) / Band-kg` (gleiche Ep
 
 ## Statistik (`statSeries`, `renderStats`)
 - **Volumen** pro Einheit = Σ (Last × Wiederholungen). Anzeige: letzte Einheit, „gesamt seit Start“ (letzte vs. erste Einheit) und „zur Vorwoche“ (letzte Einheit vs. letzte Einheit der **Kalenderwoche davor**, Mo–So).
-- **Kraft** = geschätztes 1-Wdh-Maximum (Epley) des besten Satzes: `Last × (1 + r/30)`. Nur Übungen mit Gewicht/Körpergewicht, nicht bei `repUnit`. Sätze mit Absprung zählen nicht, Haltezeit zählt nicht (nur bewegtes Gewicht). Grund: Das Volumen kann sinken, wenn schwerer mit weniger Wiederholungen trainiert wird – die Kraft zeigt dann den Fortschritt.
+- **Kraft** = geschätztes 1-Wdh-Maximum (Epley) des besten Satzes: `Last × (1 + r/30)`. Nur Übungen mit Gewicht/Körpergewicht sowie Pallof (Band-Last = Band-kg × Faktor, grober Richtwert, seit 18.11.2026), nicht bei `repUnit`. Sätze mit Absprung zählen nicht, Haltezeit zählt nicht (nur bewegtes Gewicht). Grund: Das Volumen kann sinken, wenn schwerer mit weniger Wiederholungen trainiert wird – die Kraft zeigt dann den Fortschritt.
 - **Plateau-Warnung**: die letzten 3 Einheiten, Volumen ≤ +2 % gegenüber der ersten davon **und** (falls ≥ 3 Kraftwerte) Kraft ≤ +2 %.
 - **Zähler**: „Wochen trainiert“ = Kalenderwochen mit ≥ 1 gespeicherter Einheit; „Wochen mit diesem Plan“ = Wochen seit der ersten Einheit inkl. laufender Woche (Start 12.10.2026).
 
