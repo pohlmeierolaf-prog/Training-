@@ -30,6 +30,7 @@ Zahlen der Statistik mit den Exportdaten alt/neu verglichen: identisch, außer S
 - 2026-10-23_fr und 2026-10-30_fr: Liegestütze als `t:true` (Haltezeit) markiert (23.10. wurde einmal durch erneutes Speichern wieder überschrieben und neu gesetzt).
 - 2026-11-04_mi: Klimmzüge und Pallof mit `b:30` (lila Band) markiert.
 - 2026-11-12_do: `abwheel` → `kneeelbow` (2×10) umbenannt.
+- 2026-11-18_mi (neue App): Pallof beide Sätze `b:30` → `bs:[10,30]` (lila + grün), Wiederholungen 8/12 unverändert. Nutzer hat grün in den Einstellungen auf 5 kg gesetzt.
 - Früher: Einträge, die versehentlich falsch datiert waren (z. B. Power Cleans doppelt am 12./13.10.), sind laut Stand noch vorhanden (`2026-10-13_mo` ist die doppelte Einheit).
 
 ## Export-Stand
