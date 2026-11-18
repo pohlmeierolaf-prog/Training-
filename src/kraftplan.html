@@ -302,17 +302,27 @@ function normSettings(s) {
 let settings = normSettings(lsGet(LS_SET, null));
 const bandName = (b) => BAND_NAMES[b] || b + " kg";
 const bandLoad = (b) => (settings.bandKg[b] ?? b) * settings.bandFactor;
+// Bänder eines Satzes: einzeln als b (Nennwert), kombiniert als bs: [10, 30] (seit 11/2026)
+const bandsOf = (s) => s && Array.isArray(s.bs) && s.bs.length ? s.bs : s && s.b ? [s.b] : [];
+const bandsLoad = (s) => bandsOf(s).reduce((a, b) => a + bandLoad(b), 0);
+const bandsName = (bs) => [...bs].sort((a, b) => b - a).map(bandName).join(" + ");
 const sessBw = (s) => { const n = num(s && s.bw); return n && n > 0 ? n : LEGACY_BW; };
 const assistOptions = (ex) => [{ k: "none", label: ex.bandOnly ? "Kein Band" : "Ohne Hilfe" }, ...(ex.assist ? [{ k: "jump", label: "Absprung" }] : []),
   ...BANDS.map(b => ({ k: String(b), label: `${cap(bandName(b))} ${fmt(settings.bandKg[b])}` }))];
-const assistCur = (dr) => dr.some(x => x.j) ? "jump" : (dr.find(x => x.b) ? String(dr.find(x => x.b).b) : "none");
+// Aktuelle Auswahl: main = "jump" | "none" | Hauptband, extra = Zusatzband oder null (Kombination aus zwei Bändern)
+const assistCur = (dr) => {
+  if (dr.some(x => x.j)) return { main: "jump", extra: null };
+  const bs = bandsOf(dr.find(x => bandsOf(x).length));
+  return { main: bs.length ? String(bs[0]) : "none", extra: bs.length > 1 ? String(bs[1]) : null };
+};
+const byStrength = (bs) => [...bs].sort((a, b) => (settings.bandKg[b] ?? b) - (settings.bandKg[a] ?? a));   // stärkstes Band zuerst
 
 // Last pro Wiederholung. forStrength: nur tatsächlich bewegtes Gewicht (Absprung zählt nicht, Haltezeit ohne Faktor)
 function setLoad(ex, s, bw, forStrength) {
-  if (ex.bandOnly) return forStrength || !s.b ? 0 : bandLoad(s.b);
+  if (ex.bandOnly) return forStrength ? 0 : bandsLoad(s);
   if (ex.bw === "pull") {
     const base = bw + (+s.w || 0);
-    if (s.b) return Math.max(0, base - bandLoad(s.b));
+    if (bandsOf(s).length) return Math.max(0, base - bandsLoad(s));
     if (s.j) return forStrength ? 0 : base * JUMP_FACTOR;
     return base;
   }
@@ -448,7 +458,8 @@ function setOut(ex, s) {
   const o = { w: ex.unit ? s.w : null, r: s.r };
   if (s.j) o.j = true;
   if (ex.tempo) o.t = !!s.t; else if (s.t) o.t = true;
-  if (s.b) o.b = s.b;
+  const bs = bandsOf(s);
+  if (bs.length === 1) o.b = bs[0]; else if (bs.length > 1) o.bs = [...bs].sort((a, b) => a - b);
   return o;
 }
 // Entwurf -> Einträge im Speicherformat (nur Übungen des Plans)
@@ -466,7 +477,7 @@ function entriesToSave(key) {
   for (const id of Object.keys(saved)) if (!d[id]) out[id] = saved[id];
   return Object.assign(out, draftEntries(dayOfKey(key), d));
 }
-const normEntries = (e) => JSON.stringify(Object.keys(e || {}).sort().map(k => [k, e[k].map(s => [s.w == null ? null : s.w, s.r == null ? null : s.r, s.j ? 1 : 0, s.t ? 1 : 0, s.b || 0])]));
+const normEntries = (e) => JSON.stringify(Object.keys(e || {}).sort().map(k => [k, e[k].map(s => [s.w == null ? null : s.w, s.r == null ? null : s.r, s.j ? 1 : 0, s.t ? 1 : 0, [...bandsOf(s)].sort((a, b) => a - b).join("+")])]));
 const draftTouched = (d) => Object.keys(d).some(x => Array.isArray(d[x]) && d[x].some(s => s.w != null || s.r != null || s.done));
 const savedNote = (key) => (savedSession(key) || {}).note || "";
 const noteValue = (key) => key in state.notes ? state.notes[key] : savedNote(key);
@@ -476,7 +487,7 @@ const entriesDiffer = (key) => normEntries(entriesToSave(key)) !== normEntries((
 const draftDiffers = (key) => entriesDiffer(key) || noteDiffers(key);
 const unsavedChanges = () => state.tab === "train" && draftDiffers(draftKey());
 
-const fromSaved = (s) => ({ w: s.w ?? null, r: s.r ?? null, j: !!s.j, t: !!s.t, b: s.b || 0, done: true });
+const fromSaved = (s) => ({ w: s.w ?? null, r: s.r ?? null, j: !!s.j, t: !!s.t, bs: byStrength(bandsOf(s)), done: true });
 function draftFor(exId, n) {
   const k = draftKey(), d = state.drafts[k] = state.drafts[k] || {};
   if (!d[exId]) {
@@ -484,9 +495,9 @@ function draftFor(exId, n) {
     const saved = savedSession(k), src = saved && saved.entries && saved.entries[exId];
     // Vorgaben für neue Sätze: Hilfe wie beim letzten Mal, Haltezeit bei Tempo-Übungen an
     const le = lastEntry(exId, state.date);
-    const b0 = (le && (le.sets.find(x => x.b) || {}).b) || 0;
-    const j0 = !b0 && !!(le && le.sets.some(x => x.j));
-    d[exId] = Array.from({ length: n }, (_, i) => src && src[i] ? fromSaved(src[i]) : { w: null, r: null, j: j0, t: !!ex.tempo, b: b0, done: false });
+    const b0 = le ? bandsOf(le.sets.find(x => bandsOf(x).length)) : [];
+    const j0 = !b0.length && !!(le && le.sets.some(x => x.j));
+    d[exId] = Array.from({ length: n }, (_, i) => src && src[i] ? fromSaved(src[i]) : { w: null, r: null, j: j0, t: !!ex.tempo, bs: byStrength(b0), done: false });
   }
   return d[exId];
 }
@@ -502,11 +513,12 @@ function progression(ex, last) {
   const topW = Math.max(...sets.map(s => s.w ?? 0));
   const allTop = sets.length >= ex.sets && sets.every(s => s.r >= ex.max);
   if (!allTop) return { type: "hold", text: sets.some(s => s.r < ex.min) ? "Unter Zielbereich: Last halten" : `Last halten, Ziel ${ex.max} ${ex.repUnit === "s" ? "s" : "Wdh."} pro Satz`, next: topW || null };
-  const b = (sets.find(s => s.b) || {}).b || 0;
+  const bs = bandsOf(sets.find(s => bandsOf(s).length)), b = bs.reduce((a, x) => a + x, 0);
   if (ex.bandOnly) {
     const nb = BANDS.find(x => x > b);
-    return { type: "up", text: nb ? `Ziel erreicht: stärkeres Band (${bandName(nb)})` : "Ziel erreicht: mehr Abstand zur Befestigung", next: null };
+    return { type: "up", text: nb ? `Ziel erreicht: stärkeres Band (${bandName(nb)})` : bs.length > 1 ? "Ziel erreicht: stärkere Kombination oder mehr Abstand" : "Ziel erreicht: mehr Abstand zur Befestigung", next: null };
   }
+  if (ex.assist && bs.length > 1) return { type: "up", text: `Ziel erreicht: weniger Hilfe (${bandName(Math.min(...bs))} weglassen)`, next: topW };
   // Mit Hilfe: erst die Hilfe abbauen (Absprung → stärkstes Band → schwächere Bänder → ohne), dann Zusatzgewicht
   if (ex.assist && sets.some(s => s.j)) return { type: "up", text: `Ziel erreicht: Band statt Absprung (${bandName(BANDS[BANDS.length - 1])})`, next: topW };
   if (ex.assist && b) {
@@ -524,10 +536,10 @@ function setsText(ex, sets) {
     const w = s.w == null ? "–" : fmt(s.w + (ex.bar || 0)) + (ex.unit === "cm" ? " cm" : ex.unit === "kg+" ? " kg+" : "");
     return `${w}×${r}`;
   };
-  const used = sets.filter(s => s.r != null || s.w != null), band = (sets.find(s => s.b) || {}).b;
+  const used = sets.filter(s => s.r != null || s.w != null), band = bandsOf(sets.find(s => bandsOf(s).length));
   const extra = [];
   if (sets.some(s => s.j)) extra.push("mit Absprung");
-  if (band) extra.push("Band " + bandName(band));
+  if (band.length) extra.push((band.length > 1 ? "Bänder " : "Band ") + bandsName(band));
   if (sets.some(s => s.t)) extra.push("mit Haltezeit");
   else if (ex.tempo && used.length && used.every(s => s.t === false)) extra.push("ohne Haltezeit");
   return [...used.map(one), ...extra].join(" · ");
@@ -677,7 +689,8 @@ function exBlock(ex) {
     <div class="ex-head">
       <div class="ex-title"><span class="ex-name">${esc(ex.name)}</span><span class="ex-target">${ex.sets} × ${range}${ex.repUnit ? " " + ex.repUnit : ""}</span></div>
       ${chips ? `<div class="chips">${chips}</div>` : ""}
-      ${ex.assist || ex.bandOnly ? `<div class="chips">${assistOptions(ex).map(o => `<button type="button" class="chip jump ${cur === o.k ? "on" : ""}" data-assist="${ex.id}" data-mode="${o.k}" aria-pressed="${cur === o.k}">${cur === o.k ? "✓ " : ""}${esc(o.label)}</button>`).join("")}</div>` : ""}
+      ${ex.assist || ex.bandOnly ? `<div class="chips">${assistOptions(ex).map(o => `<button type="button" class="chip jump ${cur.main === o.k ? "on" : ""}" data-assist="${ex.id}" data-mode="${o.k}" aria-pressed="${cur.main === o.k}">${cur.main === o.k ? "✓ " : ""}${esc(o.label)}</button>`).join("")}</div>
+      ${/^\d+$/.test(cur.main) ? `<div class="chips"><span class="chip" style="background:none;padding:7px 0;font-size:13px">+ Zusatzband:</span>${[{ k: "", label: "keins" }, ...assistOptions(ex).filter(o => /^\d+$/.test(o.k) && o.k !== cur.main)].map(o => { const on = (cur.extra || "") === o.k; return `<button type="button" class="chip jump ${on ? "on" : ""}" data-extra="${ex.id}" data-band="${o.k}" aria-pressed="${on}">${on ? "✓ " : ""}${esc(o.label)}</button>`; }).join("")}</div>${cur.extra ? `<div class="tip">Kombiniert: ${esc(bandsName([+cur.main, +cur.extra]))}, zusammen ${fmt((settings.bandKg[cur.main] ?? +cur.main) + (settings.bandKg[cur.extra] ?? +cur.extra))} kg</div>` : ""}` : ""}` : ""}
       ${ex.tempo ? `<div class="chips"><button type="button" class="chip jump ${tempoOn ? "on" : ""}" data-tempo="${ex.id}" aria-pressed="${tempoOn}">${tempoOn ? "✓ Langsam: 3 s runter, 1–2 s halten" : "Ohne Haltezeit – tippen zum Einschalten"}</button></div>` : ""}
       ${last ? `<div class="last">Zuletzt ${deDate(last.date)}: <b>${esc(setsText(ex, last.sets))}</b></div>` : ""}
       ${plateau(ex) ? plateauHtml() : ""}
@@ -787,7 +800,15 @@ $("#app").addEventListener("click", async (e) => {
   if (b.dataset.assist) {
     const ex = exById(state.day, b.dataset.assist); if (!ex) return;
     const mode = b.dataset.mode;
-    draftFor(ex.id, ex.sets).forEach(x => { x.j = mode === "jump"; x.b = /^\d+$/.test(mode) ? +mode : 0; });
+    const band = /^\d+$/.test(mode) ? +mode : 0;   // Hauptauswahl: ersetzt alles (auch ein Zusatzband)
+    draftFor(ex.id, ex.sets).forEach(x => { x.j = mode === "jump"; x.bs = band ? [band] : []; delete x.b; });
+    saveDrafts(); refreshEx(ex.id); return;
+  }
+  if (b.dataset.extra) {
+    const ex = exById(state.day, b.dataset.extra); if (!ex) return;
+    const dr = draftFor(ex.id, ex.sets), main = +assistCur(dr).main, extra = +b.dataset.band || 0;
+    if (!main) return;
+    dr.forEach(x => { x.j = false; x.bs = extra && extra !== main ? [main, extra] : [main]; delete x.b; });
     saveDrafts(); refreshEx(ex.id); return;
   }
   if (b.dataset.tempo) {

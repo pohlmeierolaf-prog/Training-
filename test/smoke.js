@@ -150,5 +150,29 @@ async function more() {
   // 20) Einstellungen und Statistik rendern
   openSheet("settings"); check("Einstellungen rendern", /Band-Faktor messen/.test(els["#setBody"].innerHTML)); closeSheet();
   state.sessions = all(); openSheet("stats"); check("Statistik zeigt Zeit unter Spannung", /Zeit unter Spannung/.test(els["#statsBody"].innerHTML)); closeSheet();
+  // 21) Bänder kombinieren (Pallof lila + grün)
+  state.mode = "local"; localStorage.setItem(LS_SESS, "[]"); loadLocal(); state.drafts = {}; state.saving = false;
+  today = "2026-11-18"; state.tab = "train"; state.day = "mi"; state.date = today; render();
+  await click({ dataset: { assist: "pallof", mode: "30" } });
+  await click({ dataset: { assist: "pallof", mode: "30" } });
+  check("erneuter Tipp aufs Hauptband lässt es gewählt", assistCur(draftFor("pallof", 2)).main === "30");
+  await click({ dataset: { extra: "pallof", band: "10" } });
+  check("Zusatzband: lila + grün gewählt", JSON.stringify(assistCur(draftFor("pallof", 2))) === JSON.stringify({ main: "30", extra: "10" }));
+  input("pallof", 0, "r", 10); input("pallof", 1, "r", 10);
+  await save();
+  const pal2 = savedSession("2026-11-18_mi").entries.pallof;
+  check("Kombination gespeichert als bs [10, 30]", JSON.stringify(pal2[0].bs) === "[10,30]" && pal2[0].b === undefined);
+  check("Kombination: Last = (10 + 30) × Faktor", Math.abs(setLoad(PLAN.mi.ex[2], pal2[0], 90) - 40 * settings.bandFactor) < 1e-9);
+  check("Text zeigt 'Bänder lila + grün'", setsText(PLAN.mi.ex[2], pal2).includes("Bänder lila + grün"));
+  check("Gespeicherte Kombination gilt nicht als ungespeichert", (render(), !unsavedChanges()));
+  check("nach dem Laden: stärkstes Band als Hauptband", JSON.stringify(assistCur(draftFor("pallof", 2))) === JSON.stringify({ main: "30", extra: "10" }));
+  await click({ dataset: { extra: "pallof", band: "" } });
+  check("Zusatzband 'keins' entfernt nur das Zusatzband", JSON.stringify(assistCur(draftFor("pallof", 2))) === JSON.stringify({ main: "30", extra: null }));
+  await click({ dataset: { extra: "pallof", band: "10" } }); await click({ dataset: { assist: "pallof", mode: "40" } });
+  check("Wechsel des Hauptbands ersetzt die Kombination", JSON.stringify(assistCur(draftFor("pallof", 2))) === JSON.stringify({ main: "40", extra: null }));
+  await click({ dataset: { assist: "pallof", mode: "none" } });
+  check("'Kein Band' löscht alle", assistCur(draftFor("pallof", 2)).main === "none");
+  check("altes Format b:30 = Auswahl lila", setLoad(PLAN.mi.ex[2], { r: 10, b: 30 }, 90) === 30 * settings.bandFactor && normEntries({ p: [{ r: 1, b: 30 }] }) === normEntries({ p: [{ r: 1, bs: [30] }] }));
+  check("Klimmzug mit Kombination → ein Band weglassen", progression(PLAN.mi.ex[0], { date: "x", sets: [0, 1, 2].map(() => ({ w: 0, r: 12, bs: [10, 30] })) }).text.includes("grün weglassen"));
 }`;
 try { new Function(code)(); } catch (e) { console.log("FEHLER", e.stack.split("\n").slice(0, 3).join("\n")); process.exit(1); }
