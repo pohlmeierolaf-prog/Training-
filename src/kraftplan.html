@@ -178,6 +178,24 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .fsel { height: 36px; border: 0; border-radius: 8px; background: var(--fill); color: var(--fg); font: 600 16px var(--font); padding: 0 8px; }
 .tog { width: 22px; height: 22px; accent-color: var(--accent); }
 .scard .note { background: var(--fill); margin: 8px 0; min-height: 80px; font-size: 14px; }
+/* Info-Knopf, Statistik-Tabelle, aufklappbare Ausführung */
+.htools { display: flex; gap: 8px; align-items: center; }
+.ibtn { width: 34px; height: 34px; border-radius: 999px; background: var(--fill); color: var(--fg2); font: italic 700 17px/1 Georgia, "Times New Roman", serif; }
+.ibtn[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent); }
+.infobox { background: var(--card); border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; display: grid; gap: 8px; font-size: 14px; line-height: 1.45; color: var(--fg2); }
+.infobox[hidden] { display: none; }
+.infobox b { color: var(--fg); font-weight: 600; }
+.stab { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 6px 14px; align-items: baseline; margin-top: 8px; font-size: 15px; }
+.stab .h { font-size: 11px; font-weight: 600; color: var(--fg3); text-transform: uppercase; letter-spacing: .04em; text-align: right; }
+.stab .l { color: var(--fg2); }
+.stab .n { text-align: right; font-weight: 600; white-space: nowrap; }
+.sfoot { margin-top: 8px; font-size: 12px; color: var(--fg3); }
+.shead .chip { flex: none; }
+details.how summary { list-style: none; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--accent); width: max-content; }
+details.how summary::-webkit-details-marker { display: none; }
+details.how summary::before { content: "▸ "; }
+details.how[open] summary::before { content: "▾ "; }
+details.how .tip { margin-top: 4px; }
 .btnrow { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 
 /* Kein versehentliches Markieren (Google-Suchleiste) beim Tippen; Eingabefelder bleiben normal */
@@ -211,7 +229,7 @@ body.typing .timer { display: none; }
   </button>
 </nav>
 <div class="toast" id="toast" hidden></div>
-<div class="modal" id="statsModal" hidden><div class="msheet" role="dialog" aria-label="Statistik"><div class="mhead"><h2>Statistik</h2><button type="button" class="mclose" data-close aria-label="Schließen">✕</button></div><div class="mbody" id="statsBody"></div></div></div>
+<div class="modal" id="statsModal" hidden><div class="msheet" role="dialog" aria-label="Statistik"><div class="mhead"><h2>Statistik</h2><span class="htools"><button type="button" class="ibtn" id="statsInfoBtn" aria-label="Erklärung der Werte" aria-expanded="false" aria-controls="statsInfo">i</button><button type="button" class="mclose" data-close aria-label="Schließen">✕</button></span></div><div class="mbody" id="statsBody"></div></div></div>
 <div class="modal" id="setModal" hidden><div class="msheet" role="dialog" aria-label="Einstellungen"><div class="mhead"><h2>Einstellungen</h2><button type="button" class="mclose" data-close aria-label="Schließen">✕</button></div><div class="mbody" id="setBody"></div></div></div>
 
 <script>
@@ -341,7 +359,7 @@ const state = {
   why: "",
   drafts: lsGet("kraftplan-drafts", {}),   // key `${date}_${day}` -> {exId:[{w,r,j,t,b,done}]}
   notes: lsGet("kraftplan-notes", {}),     // key -> Notiz-Entwurf
-  openEx: null, confirmDel: null, pendingRender: false, sheet: null
+  openEx: null, confirmDel: null, pendingRender: false, sheet: null, howOpen: {}, extraOpen: {}, statsInfo: false
 };
 const saveDrafts = () => { lsSet("kraftplan-drafts", state.drafts); lsSet("kraftplan-notes", state.notes); };
 
@@ -532,7 +550,7 @@ function progression(ex, last) {
 function setsText(ex, sets) {
   const one = (s) => {
     const r = `${s.r ?? "–"}${ex.repUnit || ""}`;
-    if (!ex.unit) return r;
+    if (!ex.unit || (ex.unit === "kg+" && !s.w)) return r;   // Klimmzug ohne Zusatzgewicht: nur Wdh.
     const w = s.w == null ? "–" : fmt(s.w + (ex.bar || 0)) + (ex.unit === "cm" ? " cm" : ex.unit === "kg+" ? " kg+" : "");
     return `${w}×${r}`;
   };
@@ -633,9 +651,9 @@ document.addEventListener("focusout", () => setTimeout(flushRender, 400));
 
 function storageHtml() {
   const p = pendingCount();
-  const wait = p ? ` · ${p} ${p === 1 ? "Einheit wartet" : "Einheiten warten"} auf Übertragung` : "";
-  if (state.mode === "db") return `<span class="dot ${p ? "warn" : "ok"}"></span>In deinem Konto gespeichert${wait}`;
-  if (state.mode === "offline") return `<span class="dot warn"></span>Keine Verbindung zum Konto${state.why ? " (" + esc(state.why) + ")" : ""} – neue Einheiten werden vorgemerkt${wait}`;
+  const wait = p ? ` · ${p} ${p === 1 ? "wartet" : "warten"} auf Übertragung` : "";
+  if (state.mode === "db") return `<span class="dot ${p ? "warn" : "ok"}"></span>Im Konto gespeichert${wait}`;
+  if (state.mode === "offline") return `<span class="dot warn"></span>Offline – Einheiten werden vorgemerkt${wait}`;
   if (state.mode === "connecting") return `<span class="dot"></span>Verbinde mit Konto …`;
   return `<span class="dot"></span>Nur in diesem Browser${state.why ? " (" + esc(state.why) + ")" : ""}`;
 }
@@ -645,7 +663,6 @@ function header(title, sub) {
     <span class="tools">
       ${state.tab === "train" ? `<button type="button" class="statbtn" id="statsBtn" aria-label="Statistik"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 20V11M12 20V5M19 20v-6"/></svg></button><input type="date" class="datepick" id="datePick" value="${state.date}" aria-label="Datum">` : ""}
       <button type="button" class="statbtn" id="setBtn" aria-label="Einstellungen"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></button>
-      <span class="sizer"><button type="button" id="zoomOut" aria-label="Kleiner" ${zoomIdx === 0 ? "disabled" : ""}>A</button><button type="button" id="zoomIn" aria-label="Größer" ${zoomIdx === ZOOMS.length - 1 ? "disabled" : ""}>A</button></span>
     </span>
   </div>
   <h1 class="largetitle">${esc(title)}</h1><p class="subtitle">${esc(sub)}</p>`;
@@ -655,14 +672,14 @@ function weekHtml() {
   const ws = weekStart(today), todayDay = isSunday(today) ? null : dayFromDate(today);
   const done = DAYS.filter((k, i) => savedSession(`${addDays(ws, i)}_${k}`));
   const seg = `<div class="seg" role="tablist">${DAYS.map(k => `<button type="button" role="tab" data-day="${k}" class="${k === state.day ? "on" : ""} ${k === todayDay ? "today" : ""} ${done.includes(k) ? "done" : ""}" aria-selected="${k === state.day}" aria-label="${PLAN[k].name}${done.includes(k) ? ", diese Woche erledigt" : ""}">${SHORT[k]}</button>`).join("")}</div>`;
-  return seg + `<p class="weekline">Diese Woche: ${done.length} von ${DAYS.length} Einheiten erledigt</p>`;
+  return seg + `<p class="weekline">Diese Woche ${done.length} von ${DAYS.length} erledigt</p>`;
 }
 function deloadHtml() {
   const d = deloadInfo();
-  if (d.active) return `<div class="notice soft"><span><b>Deload-Woche</b> – gleiche Übungen, etwa halb so viele Sätze und rund 10 % weniger Gewicht.</span><button type="button" class="pill" data-deload="off">Deload aufheben</button></div>`;
+  if (d.active) return `<div class="notice soft"><span><b>Deload-Woche:</b> halb so viele Sätze, rund 10 % leichter.</span><button type="button" class="pill" data-deload="off">Deload aufheben</button></div>`;
   if (!d.due) return "";
   const why = d.weeks >= DELOAD_WEEKS ? `${d.weeks} Wochen am Stück trainiert` : `${d.plateaus} Übungen im Plateau`;
-  return `<div class="notice"><span><b>Deload-Woche empfohlen</b> (${why}). Diese Woche: gleiche Übungen, etwa halb so viele Sätze und rund 10 % weniger Gewicht.</span><button type="button" class="pill" data-deload="on">Diese Woche ist Deload</button></div>`;
+  return `<div class="notice"><span><b>Deload-Woche empfohlen</b> (${why}): halb so viele Sätze, rund 10 % leichter.</span><button type="button" class="pill" data-deload="on">Diese Woche ist Deload</button></div>`;
 }
 function exBlock(ex) {
   const dr = draftFor(ex.id, ex.sets);
@@ -670,7 +687,8 @@ function exBlock(ex) {
   const pr = progression(ex, last);
   const range = ex.min === ex.max ? `${ex.min}` : `${ex.min}–${ex.max}`;
   const cur = assistCur(dr), tempoOn = dr.some(s => s.t);
-  const chips = (ex.ss ? `<span class="chip ss">${esc(ex.ss)}</span>` : "") + (pr ? `<span class="chip ${pr.type}">${esc(pr.text)}</span>` : "");
+  const chips = pr ? `<span class="chip ${pr.type}">${esc(pr.text)}</span>` : "";
+  const how = [ex.tip, ex.bar ? `Eingabe nur Scheiben, die Stange (${ex.bar} kg) rechnet die App dazu.` : ""].filter(Boolean).join(" ");
   const rows = dr.map((s, i) => {
     const lastSet = last && (last.sets[i] || last.sets[last.sets.length - 1]);
     const phW = pr && pr.type === "up" && pr.next != null ? fmt(pr.next) : lastSet && lastSet.w != null ? fmt(lastSet.w) : (ex.start != null ? String(ex.start) : ex.unit === "cm" ? "40" : ex.unit === "kg+" ? "0" : "");
@@ -684,18 +702,18 @@ function exBlock(ex) {
       </button>
     </div>`;
   }).join("");
-  return `<div class="exblock" id="exb-${ex.id}"><div class="group-h"><span>${esc(ex.ss || "Übung")}</span><span>${ex.rest} s Pause</span></div>
+  return `<div class="exblock" id="exb-${ex.id}"><div class="group-h"><span>${esc(ex.ss || "")}</span><span>${ex.rest} s Pause</span></div>
   <section class="card">
     <div class="ex-head">
       <div class="ex-title"><span class="ex-name">${esc(ex.name)}</span><span class="ex-target">${ex.sets} × ${range}${ex.repUnit ? " " + ex.repUnit : ""}</span></div>
       ${chips ? `<div class="chips">${chips}</div>` : ""}
       ${ex.assist || ex.bandOnly ? `<div class="chips">${assistOptions(ex).map(o => `<button type="button" class="chip jump ${cur.main === o.k ? "on" : ""}" data-assist="${ex.id}" data-mode="${o.k}" aria-pressed="${cur.main === o.k}">${cur.main === o.k ? "✓ " : ""}${esc(o.label)}</button>`).join("")}</div>
-      ${/^\d+$/.test(cur.main) ? `<div class="chips"><span class="chip" style="background:none;padding:7px 0;font-size:13px">+ Zusatzband:</span>${[{ k: "", label: "keins" }, ...assistOptions(ex).filter(o => /^\d+$/.test(o.k) && o.k !== cur.main)].map(o => { const on = (cur.extra || "") === o.k; return `<button type="button" class="chip jump ${on ? "on" : ""}" data-extra="${ex.id}" data-band="${o.k}" aria-pressed="${on}">${on ? "✓ " : ""}${esc(o.label)}</button>`; }).join("")}</div>${cur.extra ? `<div class="tip">Kombiniert: ${esc(bandsName([+cur.main, +cur.extra]))}, zusammen ${fmt((settings.bandKg[cur.main] ?? +cur.main) + (settings.bandKg[cur.extra] ?? +cur.extra))} kg</div>` : ""}` : ""}` : ""}
+      ${/^\d+$/.test(cur.main) && !cur.extra && !state.extraOpen[ex.id] ? `<div class="chips"><button type="button" class="chip jump" data-extraopen="${ex.id}">+ zweites Band</button></div>` : ""}
+      ${/^\d+$/.test(cur.main) && (cur.extra || state.extraOpen[ex.id]) ? `<div class="chips"><span class="chip" style="background:none;padding:7px 0;font-size:13px">+ Zusatzband:</span>${[{ k: "", label: "keins" }, ...assistOptions(ex).filter(o => /^\d+$/.test(o.k) && o.k !== cur.main)].map(o => { const on = (cur.extra || "") === o.k; return `<button type="button" class="chip jump ${on ? "on" : ""}" data-extra="${ex.id}" data-band="${o.k}" aria-pressed="${on}">${on ? "✓ " : ""}${esc(o.label)}</button>`; }).join("")}</div>${cur.extra ? `<div class="tip">Kombiniert: ${esc(bandsName([+cur.main, +cur.extra]))}, zusammen ${fmt((settings.bandKg[cur.main] ?? +cur.main) + (settings.bandKg[cur.extra] ?? +cur.extra))} kg</div>` : ""}` : ""}` : ""}
       ${ex.tempo ? `<div class="chips"><button type="button" class="chip jump ${tempoOn ? "on" : ""}" data-tempo="${ex.id}" aria-pressed="${tempoOn}">${tempoOn ? "✓ Langsam: 3 s runter, 1–2 s halten" : "Ohne Haltezeit – tippen zum Einschalten"}</button></div>` : ""}
       ${last ? `<div class="last">Zuletzt ${deDate(last.date)}: <b>${esc(setsText(ex, last.sets))}</b></div>` : ""}
       ${plateau(ex) ? plateauHtml() : ""}
-      ${ex.tip ? `<div class="tip">${esc(ex.tip)}</div>` : ""}
-      ${ex.bar ? `<div class="tip">Eingabe: nur Scheiben. Die Stange (${ex.bar} kg) wird in „Zuletzt“, Verlauf und Statistik automatisch addiert.</div>` : ""}
+      ${how ? `<details class="how" data-how="${ex.id}" ${state.howOpen[ex.id] ? "open" : ""}><summary>Ausführung</summary><div class="tip">${esc(how)}</div></details>` : ""}
     </div>
     <div class="sets">
       <div class="row lbl"><span>Satz</span><span style="text-align:center">${ex.unit ? (ex.bar ? "kg Scheiben" : UNIT_LABEL[ex.unit]) : ""}</span><span style="text-align:center">${ex.repUnit === "s" ? "Sek." : "Wdh."}</span><span></span></div>
@@ -706,9 +724,9 @@ function exBlock(ex) {
 function saveBarInner() {
   const saved = savedSession(draftKey());
   const label = state.saving ? "Speichert …" : saved ? "Änderungen speichern" : "Training speichern";
-  const hint = unsavedChanges() ? "⚠ Noch nicht gespeichert. Tippe auf den Speichern-Button."
-    : saved ? `Gespeichert am ${deDate(state.date, true)} · erneutes Speichern überschreibt`
-    : "Haken übernehmen den Vorschlag und starten die Pause. Gespeichert wird erst mit dem Button.";
+  const hint = unsavedChanges() ? "⚠ Noch nicht gespeichert"
+    : saved ? `✓ Gespeichert am ${deDate(state.date, true)}`
+    : "Haken = Vorschlag übernehmen und Pause starten";
   return `<button class="btn" id="saveBtn" type="button" ${state.saving ? "disabled" : ""}>${label}</button><div class="hint">${hint}</div>`;
 }
 function renderTrain() {
@@ -789,6 +807,7 @@ $("#app").addEventListener("input", (e) => {
     saveDrafts(); refreshSaveBar();
   }
 });
+$("#app").addEventListener("toggle", (e) => { const d = e.target; if (d.dataset && d.dataset.how) state.howOpen[d.dataset.how] = d.open; }, true);
 $("#app").addEventListener("change", (e) => {
   if (e.target.id === "datePick" && e.target.value) {
     state.date = e.target.value; state.day = dayFromDate(state.date); render();
@@ -804,10 +823,12 @@ $("#app").addEventListener("click", async (e) => {
     draftFor(ex.id, ex.sets).forEach(x => { x.j = mode === "jump"; x.bs = band ? [band] : []; delete x.b; });
     saveDrafts(); refreshEx(ex.id); return;
   }
+  if (b.dataset.extraopen) { state.extraOpen[b.dataset.extraopen] = true; refreshEx(b.dataset.extraopen); return; }
   if (b.dataset.extra) {
     const ex = exById(state.day, b.dataset.extra); if (!ex) return;
     const dr = draftFor(ex.id, ex.sets), main = +assistCur(dr).main, extra = +b.dataset.band || 0;
     if (!main) return;
+    state.extraOpen[ex.id] = !!extra;
     dr.forEach(x => { x.j = false; x.bs = extra && extra !== main ? [main, extra] : [main]; delete x.b; });
     saveDrafts(); refreshEx(ex.id); return;
   }
@@ -897,16 +918,23 @@ $("#tabHist").addEventListener("click", (e) => tabClick("tabHist", e));
 
 // ---------- Statistik ----------
 const pct = (a, b) => b > 0 ? Math.round((a - b) / b * 100) : null;
-function pctRow(label, p, note) {
-  if (p == null) return `<div class="srow"><span>${label}</span><span class="sdim">${note}</span></div>`;
-  return `<div class="srow"><span>${label}</span><span class="sdelta ${p >= 0 ? "up" : "down"}">${p >= 0 ? "+" : ""}${p} %</span></div>`;
-}
+const deltaCell = (p) => p == null ? `<span class="n sdim">–</span>` : `<span class="n sdelta ${p >= 0 ? "up" : "down"}">${p >= 0 ? "+" : "−"}${Math.abs(p)} %</span>`;
 // Veränderung gesamt (letzte vs. erste) und zur Vorwoche (letzte vs. letzte Einheit der Kalenderwoche davor)
 function deltas(pts, key) {
   const q = pts.filter(p => p[key] != null), last = q[q.length - 1];
   if (!last) return { last: null };
   const pw = addDays(weekStart(last.date), -7), prev = q.filter(p => weekStart(p.date) === pw).pop();
   return { last, total: q.length > 1 ? pct(last[key], q[0][key]) : null, week: prev ? pct(last[key], prev[key]) : null, n: q.length };
+}
+function statsInfoHtml() {
+  return `<div class="infobox" id="statsInfo" ${state.statsInfo ? "" : "hidden"}>
+    <div><b>Volumen</b> = Gewicht × Wiederholungen aller Sätze. Ohne Gewicht zählen die Wiederholungen, bei Zeitübungen die Zeit unter Spannung (Summe der Sekunden).</div>
+    <div><b>Kraft</b> = geschätztes Maximalgewicht für eine Wiederholung (Epley-Formel) aus deinem besten Satz. Sie steigt auch, wenn du schwerer mit weniger Wiederholungen trainierst und das Volumen dadurch fällt.</div>
+    <div><b>Gesamt</b> vergleicht die letzte Einheit mit der ersten, <b>Vorwoche</b> mit der Einheit der Woche davor.</div>
+    <div><b>Körpergewicht-Übungen</b> rechnen mit dem Gewicht, das mit der Einheit gespeichert wurde (ältere Einheiten ${LEGACY_BW} kg, aktuell ${fmt(settings.bodyweight, 1)} kg). Klimmzüge mit Absprung zählen ${Math.round(JUMP_FACTOR * 100)} % und nicht für die Kraft, ein Band zieht Band-kg × ${fmt(settings.bandFactor)} ab. Liegestütze: 64 % des Körpergewichts plus 0,2 % je cm Fußhöhe, mit Haltezeit ${fmt(TEMPO_FACTOR)}-fach (nur Volumen).</div>
+    <div><b>Pallof Press:</b> Last = Band-kg × ${fmt(settings.bandFactor)}, die Kraft ist daher nur ein grober Richtwert.</div>
+    <div><b>Wochen trainiert</b> = Kalenderwochen mit mindestens einer gespeicherten Einheit.</div>
+  </div>`;
 }
 function renderStats() {
   const wkSet = new Set(); let firstDate = null;
@@ -915,34 +943,38 @@ function renderStats() {
     wkSet.add(weekStart(sx.date)); if (!firstDate || sx.date < firstDate) firstDate = sx.date;
   }
   const planWeeks = firstDate ? Math.max(1, Math.round((noon(weekStart(today)) - noon(weekStart(firstDate))) / 604800000) + 1) : 0;
-  let html = `<div class="stiles"><div class="stile"><b>${wkSet.size}</b><span>Wochen trainiert</span><small>Wochen mit mindestens einer Einheit</small></div><div class="stile"><b>${planWeeks}</b><span>Wochen mit diesem Plan</span><small>${firstDate ? "seit " + deDate(firstDate, true) : "noch nicht gestartet"}</small></div></div>`;
-  html += `<p class="mnote">Volumen = Gewicht × Wiederholungen aller Sätze. Übungen ohne Gewicht zeigen die Wiederholungen, Zeitübungen die Zeit unter Spannung (Summe der Sekunden). Klimmzüge und Liegestütze sind mit dem Körpergewicht gerechnet, das mit der Einheit gespeichert wurde (ältere Einheiten: ${LEGACY_BW} kg, aktuell eingestellt: ${fmt(settings.bodyweight, 1)} kg): Klimmzüge mit Absprung zählen ${Math.round(JUMP_FACTOR * 100)} %, mit Band wird ${fmt(settings.bandFactor)} × Band-Wert vom Körpergewicht abgezogen (beim Pallof Press zählt das als Last), Liegestütze 64 % des Körpergewichts plus 0,2 % je cm Fußhöhe, bei langsamem Tempo mit Haltezeit ${fmt(TEMPO_FACTOR)}-fach. „Gesamt“ vergleicht deine letzte Einheit mit der ersten, „Vorwoche“ mit der Einheit der Woche davor. Kraft = geschätztes Maximalgewicht für eine Wiederholung (Epley-Formel) aus deinem besten Satz. Sie steigt, wenn du schwerer trainierst, auch wenn die Wiederholungen sinken und das Volumen dadurch fällt. Beim Pallof Press ist die Kraft aus der geschätzten Band-Last berechnet (Band-kg × Band-Faktor) und daher nur ein grober Richtwert. Sätze mit Absprung und die Haltezeit bei Liegestützen fließen in die Kraft nicht ein, nur das tatsächlich bewegte Gewicht.</p>`;
+  let html = statsInfoHtml() + `<div class="stiles"><div class="stile"><b>${wkSet.size}</b><span>Wochen trainiert</span></div><div class="stile"><b>${planWeeks}</b><span>Wochen mit diesem Plan</span><small>${firstDate ? "seit " + deDate(firstDate, true) : "noch nicht gestartet"}</small></div></div>`;
   for (const dk of DAYS) {
     const d = PLAN[dk];
-    html += `<h3 class="sday">${esc(d.name)} · ${esc(d.focus)}</h3>`;
+    html += `<h3 class="sday">${esc(d.name)} · ${esc(d.focus.split(" · ")[0])}</h3>`;
     for (const ex of d.ex) {
       const st = statSeries(ex), pts = st.pts;
-      html += `<div class="scard"><div class="shead"><span class="sname">${esc(ex.name)}</span>`;
-      if (!pts.length) { html += `</div><div class="sempty">Noch keine Daten</div></div>`; continue; }
+      html += `<div class="scard"><div class="shead"><span class="sname">${esc(ex.name)}</span>${pts.length && plateau(ex, st) ? `<span class="chip hold">⚠ Plateau</span>` : ""}</div>`;
+      if (!pts.length) { html += `<div class="sempty">Noch keine Daten</div></div>`; continue; }
       const v = deltas(pts, "v"), e = deltas(pts, "e"), last = pts[pts.length - 1];
       const bestV = pts.reduce((a, p) => p.v > a.v ? p : a, pts[0]);
       const bestE = pts.filter(p => p.e != null).reduce((a, p) => !a || p.e > a.e ? p : a, null);
-      html += `<span class="sval"><b>${fmt(last.v, 1)}</b> ${st.unit}</span></div>${plateau(ex, st) ? plateauHtml() : ""}`
-        + (st.tut && st.useVol ? `<div class="srow"><span>Last × Zeit</span><span><b>${fmt(last.vol, 1)}</b> kg·s${last.topW ? ` <span class="sdim">(max. ${fmt(last.topW)} kg)</span>` : ""}</span></div>` : "")
-        + pctRow(`${st.label}: gesamt seit Start`, v.total, pts.length > 1 ? "–" : "erst ab 2 Einheiten")
-        + pctRow(`${st.label}: zur Vorwoche`, v.week, "keine Einheit in der Vorwoche")
-        + (pts.length > 1 ? `<div class="srow"><span>Bestwert ${st.label}</span><span><b>${fmt(bestV.v, 1)}</b> ${st.unit} <span class="sdim">(${deDate(bestV.date)})</span></span></div>` : "");
-      if (e.last) {
-        html += `<div class="srow"><span>Geschätzte Maximalkraft</span><span><b>${fmt(e.last.e, 1)}</b> kg${e.last !== last ? ` <span class="sdim">(${deDate(e.last.date)})</span>` : ""}</span></div>`
-          + pctRow("Kraft: gesamt seit Start", e.total, "erst ab 2 Messungen")
-          + pctRow("Kraft: zur Vorwoche", e.week, "keine Messung in der Vorwoche")
-          + (e.n > 1 ? `<div class="srow"><span>Bestwert Kraft</span><span><b>${fmt(bestE.e, 1)}</b> kg <span class="sdim">(${deDate(bestE.date)})</span></span></div>` : "");
-      } else if (st.eOk) html += `<div class="srow"><span>Kraft</span><span class="sdim">nicht messbar (nur mit Absprung)</span></div>`;
+      const vLabel = st.tut ? "Zeit" : st.useVol ? "Volumen" : "Wdh.";
+      html += `<div class="stab"><span></span><span class="h">aktuell</span><span class="h">gesamt</span><span class="h">Vorwoche</span>
+        <span class="l">${vLabel}</span><span class="n">${fmt(last.v, 1)} ${st.unit}</span>${deltaCell(v.total)}${deltaCell(v.week)}
+        ${e.last ? `<span class="l">Kraft</span><span class="n">${fmt(e.last.e, 1)} kg</span>${deltaCell(e.total)}${deltaCell(e.week)}` : ""}</div>`;
+      const foot = [];
+      if (pts.length > 1) foot.push(`Bestwert ${vLabel} ${fmt(bestV.v, 1)} ${st.unit} (${deDate(bestV.date)})`);
+      if (bestE && e.n > 1) foot.push(`Kraft ${fmt(bestE.e, 1)} kg (${deDate(bestE.date)})`);
+      if (st.tut && st.useVol) foot.push(`Last × Zeit ${fmt(last.vol, 1)} kg·s`);
+      if (!e.last && st.eOk) foot.push("Kraft: nur ohne Absprung messbar");
+      if (foot.length) html += `<div class="sfoot">${foot.join(" · ")}</div>`;
       html += `</div>`;
     }
   }
   $("#statsBody").innerHTML = html;
 }
+$("#statsModal").addEventListener("click", (e) => {
+  if (!(e.target.closest && e.target.closest("#statsInfoBtn"))) return;
+  state.statsInfo = !state.statsInfo;
+  $("#statsInfo").hidden = !state.statsInfo;
+  $("#statsInfoBtn").setAttribute("aria-expanded", String(state.statsInfo));
+});
 
 // ---------- Einstellungen, Band-Faktor, Export/Import ----------
 // Band-Faktor aus zwei Sätzen bis kurz vor Versagen: gleiche Maximalkraft (Epley) ohne und mit Band
@@ -972,6 +1004,10 @@ function renderSettings() {
     <label class="frow"><span>Band</span><select class="fsel" id="calBand">${BANDS.map(b => `<option value="${b}" ${b === 30 ? "selected" : ""}>${cap(bandName(b))}</option>`).join("")}</select></label>
     <label class="frow"><span>Wdh. mit Band</span><input class="num sm" id="calR1" inputmode="numeric"></label>
     <div class="frow"><span id="calOut" class="sdim">Beide Werte eintragen</span><button type="button" class="pill" id="calApply" disabled>Übernehmen</button></div>
+  </div>
+  <h3 class="sday">Darstellung</h3>
+  <div class="scard">
+    <div class="frow"><span>Schriftgröße</span><span class="sizer"><button type="button" id="zoomOut" aria-label="Kleiner" ${zoomIdx === 0 ? "disabled" : ""}>A</button><button type="button" id="zoomIn" aria-label="Größer" ${zoomIdx === ZOOMS.length - 1 ? "disabled" : ""}>A</button></span></div>
   </div>
   <h3 class="sday">Pausen-Timer</h3>
   <div class="scard">
@@ -1069,6 +1105,10 @@ $("#setModal").addEventListener("click", async (e) => {
     try { await storeSettings(readSettingsForm()); toast("✓ Einstellungen gespeichert"); renderSettings(); render(); }
     catch (err) { toast("Speichern fehlgeschlagen: " + errText(err), 4000); }
     return;
+  }
+  if (b.id === "zoomIn" || b.id === "zoomOut") {
+    setZoom(zoomIdx + (b.id === "zoomIn" ? 1 : -1));
+    $("#zoomOut").disabled = zoomIdx === 0; $("#zoomIn").disabled = zoomIdx === ZOOMS.length - 1; return;
   }
   if (b.id === "expSave") { downloadExport(); return; }
   if (b.id === "expCopy") { copyExport(); return; }

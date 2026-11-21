@@ -36,6 +36,9 @@ Zahlen der Statistik mit den Exportdaten alt/neu verglichen: identisch, außer S
 ## Export-Stand
 - Paket aktualisiert am 13.11.2026: 26 Einheiten (letzte: `2026-11-13_fr`), Statistik-Snapshot in `docs/STATS-SNAPSHOT.md`. Die App-Datei enthält seit dem Code-Review (siehe oben) Änderungen, die noch veröffentlicht werden müssen.
 
+## Visuell aufgeräumt (21.11.2026)
+Statistik: Erklärtext hinter Info-Knopf (i), pro Übung eine kleine Tabelle (aktuell / gesamt / Vorwoche für Volumen und Kraft), Bestwerte als eine graue Zeile, Plateau als Etikett. Training: Ausführungstipps und Stangen-Hinweis aufklappbar („Ausführung“), Zusatzband erst nach „+ zweites Band“, „Übung“-Überschrift und doppeltes Supersatz-Etikett entfernt, kürzere Hinweise, Klimmzüge ohne Zusatzgewicht als „8 · 7 · 6“. Schriftgröße in die Einstellungen verschoben. Rechnungen unverändert.
+
 ## Band-Kombination (18.11.2026)
 Nutzer schaffte Pallof mit Rot nicht und nahm Lila + Grün zusammen. Neu: Zusatzband-Auswahl (Pallof und Klimmzüge), gespeichert als `bs`, Statistik rechnet die Summe der Band-kg. Alte Einträge (`b`) unverändert gültig.
 
